@@ -227,8 +227,10 @@ function HomeContent() {
 
     let categories = ["Action", "Adventure", "Horror", "Thriller", "Romance", "Science Fiction", "Mystery", "Comedy"];
     
-    if (tab === "tv" || tab === "anime") {
+    if (tab === "tv") {
       categories = ["Action & Adventure", "Sci-Fi & Fantasy", "Comedy", "Drama", "Mystery", "Crime", "Animation"];
+    } else if (tab === "anime") {
+      categories = ["Animation", "Action", "Fantasy", "Sci-Fi & Fantasy"];
     }
 
     const fetchCategories = async () => {
@@ -236,8 +238,8 @@ function HomeContent() {
       await Promise.all(
         categories.map(async (cat) => {
           try {
-            const typeQuery = tab !== "all" ? `&media_type=${tab}` : "";
-            // We use encodeURIComponent so '&' becomes '%26' safely
+            // If anime, we don't pass media_type=anime because TMDB uses movie/tv
+            const typeQuery = (tab !== "all" && tab !== "anime") ? `&media_type=${tab}` : "";
             const res = await fetch(`/api/movies/category/${encodeURIComponent(cat)}?n=15${typeQuery}`);
             const json = await res.json();
             if (Array.isArray(json) && json.length > 0) {
@@ -255,11 +257,19 @@ function HomeContent() {
 
   const filteredTrending = tab === "all"
     ? trending
+    : tab === "anime"
+    ? trending.filter((m) => (m.title && m.title.toLowerCase().match(/anime|no hero|jujutsu|demon slayer|attack on titan|naruto|one piece|bleach|dragon ball/)))
     : trending.filter((m) => m.media_type === tab);
 
   const filteredCategories = {};
   Object.entries(categoryData).forEach(([cat, movies]) => {
-    const filtered = tab === "all" ? movies : movies.filter((m) => m.media_type === tab);
+    let filtered = movies;
+    if (tab === "anime") {
+      // For anime, we only want things that are animated or anime-like
+      filtered = movies.filter((m) => (m.genres || "").includes("Animation") || cat === "Animation");
+    } else if (tab !== "all") {
+      filtered = movies.filter((m) => m.media_type === tab);
+    }
     if (filtered.length > 0) {
       filteredCategories[cat] = filtered;
     }

@@ -96,11 +96,15 @@ def get_backdrop(row, tmdb_data=None):
 
 def get_trailers(tmdb_data):
     videos = tmdb_data.get("videos", {}).get("results", [])
-    return [
-        {"name": v["name"], "key": v["key"], "site": v["site"], "type": v["type"]}
-        for v in videos
-        if v.get("site") == "YouTube" and v.get("type") in ("Trailer", "Teaser", "Opening Credits")
-    ]
+    trailers = []
+    for v in videos:
+        if v.get("site") == "YouTube" and v.get("type") in ("Trailer", "Teaser", "Opening Credits"):
+            # Filter out vertical videos / shorts
+            name_lower = v.get("name", "").lower()
+            if any(word in name_lower for word in ["short", "vertical", "glimpse", "tiktok", "reel"]):
+                continue
+            trailers.append({"name": v["name"], "key": v["key"], "site": v["site"], "type": v["type"]})
+    return trailers
 
 
 def get_cast(tmdb_data, limit=10):
