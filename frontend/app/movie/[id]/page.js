@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -63,7 +63,7 @@ function MovieCard({ movie, index: i }) {
   );
 }
 
-export default function MovieDetailPage() {
+function MovieDetailContent() {
   const { id } = useParams();
   const searchParams = useSearchParams();
   const [movie, setMovie] = useState(null);
@@ -267,5 +267,17 @@ export default function MovieDetailPage() {
       </AnimatePresence>
 
     </main>
+  );
+}
+
+export default function MovieDetailPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-dark-900">
+        <div className="w-16 h-16 border-[3px] border-dark-700 border-t-accent rounded-full animate-spin" />
+      </div>
+    }>
+      <MovieDetailContent />
+    </Suspense>
   );
 }

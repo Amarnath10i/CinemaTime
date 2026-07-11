@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -209,7 +209,7 @@ function HeroCarousel({ items }) {
 }
 
 /* ── Home Page ─────────────────────────────── */
-export default function HomePage() {
+function HomeContent() {
   const [trending, setTrending] = useState([]);
   const [categoryData, setCategoryData] = useState({});
   const [loading, setLoading] = useState(true);
@@ -326,5 +326,13 @@ export default function HomePage() {
       </div>
 
     </main>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-dark-900 animate-pulse" />}>
+      <HomeContent />
+    </Suspense>
   );
 }
