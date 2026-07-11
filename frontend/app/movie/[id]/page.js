@@ -162,6 +162,21 @@ export default function MovieDetailPage() {
               {movie.overview || "No description available."}
             </p>
 
+            <div className="flex flex-wrap items-center gap-6 mt-6 text-sm text-gray-300">
+               {movie.genres && (
+                 <div>
+                   <span className="text-gray-500 font-semibold uppercase tracking-wider text-xs mr-2">Genres:</span>
+                   <span className="text-gray-200">{movie.genres}</span>
+                 </div>
+               )}
+               {movie.tagline && (
+                 <div>
+                   <span className="text-gray-500 font-semibold uppercase tracking-wider text-xs mr-2">Tagline:</span>
+                   <span className="text-gray-200 italic">"{movie.tagline}"</span>
+                 </div>
+               )}
+            </div>
+
             <div className="mt-8 flex gap-4">
               {trailer && (
                 <button 
@@ -177,53 +192,32 @@ export default function MovieDetailPage() {
         </div>
       </section>
 
-      {/* Bento Grid Content */}
+      {/* Cast Section */}
       <div className="px-6 md:px-12 mt-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          
-          {/* Main Info Box */}
-          <div className="lg:col-span-2 glass rounded-2xl p-8 flex flex-col justify-start">
-             <h3 className="text-2xl font-bold font-outfit mb-4 text-white">Details</h3>
-             <div className="space-y-4">
-               <div>
-                 <span className="text-gray-500 font-semibold uppercase tracking-wider text-xs">Genres</span>
-                 <p className="text-gray-200">{movie.genres || "N/A"}</p>
-               </div>
-               {movie.tagline && (
-                 <div>
-                   <span className="text-gray-500 font-semibold uppercase tracking-wider text-xs">Tagline</span>
-                   <p className="text-gray-200 italic">"{movie.tagline}"</p>
-                 </div>
-               )}
-             </div>
-          </div>
-
-          {/* Cast Preview Box */}
-          {movie.cast_details?.length > 0 && (
-            <div className="glass rounded-2xl p-8 flex flex-col justify-start overflow-hidden">
-              <h3 className="text-2xl font-bold font-outfit mb-6 text-white">Cast</h3>
-              <div className="scroll-row !pb-4 !pt-2">
-                {movie.cast_details.slice(0, 10).map(actor => (
-                  <Link key={actor.id} href={`/cast/${actor.id}`}>
-                    <div className="flex flex-col items-center gap-3 group cursor-pointer w-[100px] flex-shrink-0 snap-start">
-                      <div className="w-20 h-20 rounded-full overflow-hidden bg-dark-700 shadow-md border-2 border-white/10 group-hover:border-[#00b4ff] transition-all duration-300">
-                         {actor.profile_path ? (
-                           <img src={actor.profile_path} alt={actor.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                         ) : (
-                           <div className="w-full h-full flex items-center justify-center text-3xl">👤</div>
-                         )}
-                      </div>
-                      <div className="text-center w-full">
-                        <p className="text-[14px] font-bold text-gray-200 group-hover:text-white transition-colors line-clamp-1">{actor.name}</p>
-                        <p className="text-[11px] text-[#00b4ff] font-medium line-clamp-1 mt-0.5">{actor.character}</p>
-                      </div>
+        {movie.cast_details?.length > 0 && (
+          <div className="glass rounded-2xl p-8 flex flex-col justify-start overflow-hidden">
+            <h3 className="text-2xl font-bold font-outfit mb-6 text-white">Cast</h3>
+            <div className="scroll-row !pb-4 !pt-2">
+              {movie.cast_details.slice(0, 15).map(actor => (
+                <Link key={actor.id} href={`/cast/${actor.id}`}>
+                  <div className="flex flex-col items-center gap-3 group cursor-pointer w-[120px] flex-shrink-0 snap-start">
+                    <div className="w-24 h-24 rounded-full overflow-hidden bg-dark-700 shadow-md border-2 border-white/10 group-hover:border-[#00b4ff] transition-all duration-300">
+                       {actor.profile_path ? (
+                         <img src={actor.profile_path} alt={actor.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                       ) : (
+                         <div className="w-full h-full flex items-center justify-center text-3xl">👤</div>
+                       )}
                     </div>
-                  </Link>
-                ))}
-              </div>
+                    <div className="text-center w-full">
+                      <p className="text-[14px] font-bold text-gray-200 group-hover:text-white transition-colors line-clamp-1">{actor.name}</p>
+                      <p className="text-[12px] text-[#00b4ff] font-medium line-clamp-1 mt-0.5">{actor.character}</p>
+                    </div>
+                  </div>
+                </Link>
+              ))}
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Recommendations Row */}

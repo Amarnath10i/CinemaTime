@@ -7,6 +7,7 @@ from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 import os
+import pandas as pd
 
 # Disable SSL warnings (needed when VPN causes cert issues)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -128,6 +129,26 @@ def row_to_dict(row, tmdb_data=None, full=False):
 
 # ── Routes ─────────────────────────────────────────────────
 
+@app.get("/api/movies/category/{genre}")
+def movie_category(genre: str, n: int = 20, media_type: Optional[str] = Query(None)):
+    if "genres_display" in movies.columns:
+        mask = movies["genres_display"].str.contains(genre, case=False, na=False)
+    elif "genres" in movies.columns:
+        mask = movies["genres"].str.contains(genre, case=False, na=False)
+    else:
+        return []
+    
+    filtered = movies[mask]
+    if media_type and media_type != "all" and "media_type" in filtered.columns:
+        filtered = filtered[filtered["media_type"] == media_type]
+        
+    subset = filtered.head(n)
+    results = []
+    for _, row in subset.iterrows():
+        results.append(row_to_dict(row))
+    return results
+
+
 @app.get("/api/movies/titles")
 def movie_titles(q: Optional[str] = Query(None)):
     if q:
@@ -243,7 +264,9 @@ def cast_movies(person_id: int):
 def trending():
     try:
         url = f"{TMDB_BASE}/trending/all/week?api_key={TMDB_API_KEY}&language=en-US"
-        data = requests.get(url, timeout=10, verify=False).json()
+        data = requests.get(url, timeout=5, verify=False).json()
+        if "results" not in data or not data["results"]:
+            raise ValueError("No results from TMDB")
         results = []
         for r in data.get("results", [])[:20]:
             poster = f"{POSTER_BASE}{r['poster_path']}" if r.get("poster_path") else PLACEHOLDER
@@ -260,4 +283,9 @@ def trending():
             })
         return results
     except Exception as e:
-        return {"error": str(e)}
+        # Fallback to local most popular movies if TMDB Live Trending is rate limited or blocked
+        subset = movies.head(20)
+        results = []
+        for _, row in subset.iterrows():
+            results.append(row_to_dict(row))
+        return results

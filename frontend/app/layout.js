@@ -23,10 +23,10 @@ export default function RootLayout({ children }) {
             </span>
           </Link>
           
-          <div className="hidden md:flex items-center gap-8 font-semibold text-sm tracking-wide text-gray-300">
-            <Link href="/?tab=movie" className="hover:text-white transition-colors">Movies</Link>
-            <Link href="/?tab=tv" className="hover:text-white transition-colors">TV Shows</Link>
-            <Link href="/?tab=anime" className="hover:text-white transition-colors">Anime</Link>
+          <div className="hidden md:flex absolute left-1/2 -translate-x-1/2 items-center gap-12 font-bold text-lg tracking-wider text-gray-300">
+            <Link href="/?tab=movie" className="hover:text-white transition-colors hover:scale-105 transform">Movies</Link>
+            <Link href="/?tab=tv" className="hover:text-white transition-colors hover:scale-105 transform">TV Shows</Link>
+            <Link href="/?tab=anime" className="hover:text-white transition-colors hover:scale-105 transform">Anime</Link>
           </div>
 
           <SearchModal />
