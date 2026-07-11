@@ -240,7 +240,7 @@ function HomeContent() {
           try {
             // If anime, we don't pass media_type=anime because TMDB uses movie/tv
             const typeQuery = (tab !== "all" && tab !== "anime") ? `&media_type=${tab}` : "";
-            const res = await fetch(`/api/movies/category/${encodeURIComponent(cat)}?n=15${typeQuery}`);
+            const res = await fetch(`/api/movies/category/${encodeURIComponent(cat)}?n=40${typeQuery}`);
             const json = await res.json();
             if (Array.isArray(json) && json.length > 0) {
               data[cat] = json;
@@ -270,7 +270,8 @@ function HomeContent() {
     } else if (tab !== "all") {
       filtered = movies.filter((m) => m.media_type === tab);
     }
-    if (filtered.length > 0) {
+    // Only show category rows that have at least 4 items so it doesn't look empty
+    if (filtered.length >= 4) {
       filteredCategories[cat] = filtered;
     }
   });
