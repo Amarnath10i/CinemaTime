@@ -28,9 +28,12 @@ try:
     movies = pickle.load(open(os.path.join(BASE_DIR, "movies.pkl"), "rb"))
     index = faiss.read_index(os.path.join(BASE_DIR, "movies.index"))
     DATA_LOADED = True
+    LOAD_ERROR = None
     print(f"✅ Data loaded successfully! {len(movies)} movies in database.")
 except Exception as e:
-    print(f"❌ ERROR loading data: {e}")
+    import traceback
+    LOAD_ERROR = traceback.format_exc()
+    print(f"❌ ERROR loading data: {LOAD_ERROR}")
     movies = pd.DataFrame()
     index = None
     DATA_LOADED = False
@@ -43,7 +46,7 @@ PLACEHOLDER = "https://via.placeholder.com/500x750?text=No+Poster"
 
 @app.get("/")
 def root():
-    return {"status": "ok", "data_loaded": DATA_LOADED, "movie_count": len(movies)}
+    return {"status": "ok", "data_loaded": DATA_LOADED, "movie_count": len(movies), "error": LOAD_ERROR}
 
 
 def safe_get(row, col, default=""):
