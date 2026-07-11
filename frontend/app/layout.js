@@ -3,7 +3,7 @@ import Link from "next/link";
 import { SearchModal } from "./SearchModal";
 
 export const metadata = {
-  title: "CinemaTime | Premium Recommendations",
+  title: "CinemaTime | Recommendations",
   description: "AI Powered Movie & TV Search",
 };
 
