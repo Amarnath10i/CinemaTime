@@ -11,6 +11,5 @@ RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
 # Copy all the backend files into the container
 COPY ./backend /code/
 
-# Cloud providers dynamically assign a port via the PORT environment variable
-ENV PORT=8000
-CMD uvicorn main:app --host 0.0.0.0 --port $PORT
+# Use Python to read PORT — avoids all shell/CRLF issues
+CMD ["python", "start.py"]
