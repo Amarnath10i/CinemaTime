@@ -1,21 +1,7 @@
-# Dependencies
-node_modules/
 __pycache__/
-*.pyc
-.env
-
-# Model artifacts (too large for GitHub)
 *.pkl
 *.index
-*.pt
-
-# Next.js
-.next/
-out/
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Datasets (too large)
-*.csv
+.env
+frontend/node_modules/
+frontend/.next/
+frontend/.env.local

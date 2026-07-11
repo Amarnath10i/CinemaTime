@@ -1,16 +1,14 @@
 import pickle
 import requests
 import streamlit as st
-import faiss
-import numpy as np
 
-@st.cache_resource
+@st.cache_data
 def load_data():
     movies = pickle.load(open("movies.pkl", "rb"))
-    index = faiss.read_index("movies.index")
-    return movies, index
+    similarity = pickle.load(open("similarity.pkl", "rb"))
+    return movies, similarity
 
-movies, index = load_data()
+movies, similarity = load_data()
 
 def fetch_poster(movie_id):
     API_KEY = "10e0997eacd8c14e60ef40b8a46f695b"
@@ -23,43 +21,27 @@ def fetch_poster(movie_id):
             return "https://via.placeholder.com/500x750?text=No+Poster"
     except Exception:
         return "https://via.placeholder.com/500x750?text=Error"
-
 def recommend(movie):
-    movie_idx = movies[movies['title'] == movie].index[0]
-    
-    # Retrieve the pre-computed vector for the selected movie
-    query_vector = index.reconstruct(int(movie_idx))
-    query_vector = np.array([query_vector])
-    
-    # Search FAISS index for top 6 matches (top 1 is the movie itself)
-    distances, indices = index.search(query_vector, 6)
-    
+    index = movies[movies['title'] == movie].index[0]
+    distances = similarity[index]
+    movie_list = sorted(
+        list(enumerate(distances)),
+        reverse=True,
+        key=lambda x: x[1]
+    )[1:6]
     recommended_movies = []
-    
-    for i in indices[0][1:]:
-        movie_row = movies.iloc[i]
-        
-        # safely handle missing data
-        overview = movie_row.overview if hasattr(movie_row, 'overview') else "No description available."
-        cast = movie_row.cast_display if hasattr(movie_row, 'cast_display') else "Unknown"
-        genres = movie_row.genres_display if hasattr(movie_row, 'genres_display') else "Unknown"
-        rating = movie_row.vote_average if hasattr(movie_row, 'vote_average') else "N/A"
-        
-        recommended_movies.append({
-            "title": movie_row.title,
-            "poster": fetch_poster(movie_row.id),
-            "overview": overview,
-            "cast": cast,
-            "genres": genres,
-            "rating": rating
-        })
-        
-    return recommended_movies
+    recommended_posters = []
+    for i in movie_list:
+        movie_id = movies.iloc[i[0]].id
+        recommended_movies.append(movies.iloc[i[0]].title)
+        recommended_posters.append(fetch_poster(movie_id))
+    return recommended_movies, recommended_posters
 
 st.set_page_config(
     page_title="Movie Recommendation System",
     layout="wide"
 )
+
 
 def load_css():
     with open("style.css") as f:
@@ -67,11 +49,24 @@ def load_css():
 
 load_css()
 
+
 st.markdown(
     "<h1 class='title'>🎬 Movie Recommendation System</h1>",
     unsafe_allow_html=True
 )
 
+selected_movie = st.selectbox(
+    "Select a movie",
+    movies['title'].values
+)
+
+if st.button("Recommend"):
+    names, posters = recommend(selected_movie)
+    cols = st.columns(5)
+    for i in range(5):
+        with cols[i]:
+            st.image(posters[i])
+            st.markdown(names[i])
 selected_movie = st.selectbox(
     "Select a movie",
     movies['title'].values
