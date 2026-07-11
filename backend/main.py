@@ -11,7 +11,7 @@ import os
 # Disable SSL warnings (needed when VPN causes cert issues)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-app = FastAPI(title="CineMatch API")
+app = FastAPI(title="CinemaTime API")
 
 app.add_middleware(
     CORSMiddleware,
@@ -247,10 +247,13 @@ def trending():
         results = []
         for r in data.get("results", [])[:20]:
             poster = f"{POSTER_BASE}{r['poster_path']}" if r.get("poster_path") else PLACEHOLDER
+            backdrop = f"https://image.tmdb.org/t/p/original{r['backdrop_path']}" if r.get("backdrop_path") else ""
             results.append({
                 "id": r["id"],
                 "title": r.get("title", r.get("name", "Unknown")),
                 "poster": poster,
+                "backdrop": backdrop,
+                "overview": r.get("overview", ""),
                 "rating": r.get("vote_average", 0),
                 "release_date": r.get("release_date", r.get("first_air_date", "")),
                 "media_type": r.get("media_type", "movie"),

@@ -65,7 +65,7 @@ def api_get(url, max_attempts=4):
                 return {}
 
 print("=" * 60)
-print("  CineMatch Dataset Builder")
+print("  CinemaTime Dataset Builder")
 print("  Target: 10,000+ Movies, TV Shows, Anime")
 print("=" * 60)
 

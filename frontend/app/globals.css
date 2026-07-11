@@ -1,70 +1,54 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;700;900&family=Pacifico&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap");
-
-:root {
-  --accent: #e50914;
-  --accent-light: #ff5e62;
-  --dark-900: #0a0a0c;
-  --dark-800: #111114;
-  --dark-700: #1a1a1f;
+@layer base {
+  :root {
+    --accent: 0, 180, 255; /* Popcorn Time Blue/Cyan */
+    --accent-light: 100, 200, 255;
+    --dark-900: 10, 10, 10;
+    --dark-800: 20, 20, 20;
+    --dark-700: 30, 30, 30;
+  }
+  body {
+    background-color: rgb(var(--dark-900));
+    color: #ffffff;
+    font-family: 'Inter', sans-serif;
+    overflow-x: hidden;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Outfit', sans-serif;
+  }
+  .font-script {
+    font-family: 'Pacifico', cursive;
+  }
 }
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+@layer utilities {
+  .text-accent { color: rgb(var(--accent)); }
+  .bg-accent { background-color: rgb(var(--accent)); }
+  .bg-accent-light { background-color: rgb(var(--accent-light)); }
+  .bg-dark-900 { background-color: rgb(var(--dark-900)); }
+  .bg-dark-800 { background-color: rgb(var(--dark-800)); }
+  .bg-dark-700 { background-color: rgb(var(--dark-700)); }
+  
+  .glass {
+    @apply bg-black/40 backdrop-blur-2xl border border-white/10;
+  }
+  
+  /* Horizontal Scroll Rows */
+  .scroll-row {
+    @apply flex overflow-x-auto gap-4 pb-8 pt-4 px-2 snap-x snap-mandatory scroll-smooth;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+  }
+  .scroll-row::-webkit-scrollbar {
+    display: none; /* Chrome, Safari and Opera */
+  }
+  
+  .snap-center {
+    scroll-snap-align: center;
+  }
 }
-
-html {
-  scroll-behavior: smooth;
-}
-
-body {
-  background: var(--dark-900);
-  color: #e0e0e0;
-  font-family: "Inter", system-ui, sans-serif;
-  min-height: 100vh;
-}
-
-/* ── Scrollbar ─────────────────────────────── */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: var(--dark-900); }
-::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
-
-/* ── Glass Card ────────────────────────────── */
-.glass {
-  background: rgba(26, 26, 31, 0.6);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-/* ── Shimmer Loading ───────────────────────── */
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-.shimmer {
-  background: linear-gradient(90deg, var(--dark-700) 25%, var(--dark-600) 50%, var(--dark-700) 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
-}
-
-/* ── Glow ──────────────────────────────────── */
-.glow-red {
-  box-shadow: 0 0 40px rgba(229, 9, 20, 0.15);
-}
-
-/* ── Horizontal scroll container ───────────── */
-.scroll-row {
-  display: flex;
-  gap: 1rem;
-  overflow-x: auto;
-  padding-bottom: 1rem;
-  scroll-snap-type: x mandatory;
-}
-.scroll-row::-webkit-scrollbar { height: 4px; }
-.scroll-row::-webkit-scrollbar-thumb { background: #444; border-radius: 2px; }
-.scroll-row > * { scroll-snap-align: start; flex-shrink: 0; }
