@@ -22,6 +22,11 @@ module.exports = {
           dark: "#b20710",
         },
       },
+      keyframes: {
+        shimmer: {
+          '100%': { transform: 'translateX(100%)' },
+        }
+      }
     },
   },
   plugins: [],

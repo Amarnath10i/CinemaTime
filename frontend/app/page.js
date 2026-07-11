@@ -1,85 +1,25 @@
 "use client";
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-
-/* ── Media Badge ───────────────────────────── */
-function MediaBadge({ type }) {
-  const config = {
-    movie: { label: "MOVIE", bg: "bg-blue-500/20 text-blue-400 border-blue-500/30" },
-    tv: { label: "TV SERIES", bg: "bg-green-500/20 text-green-400 border-green-500/30" },
-    anime: { label: "ANIME", bg: "bg-pink-500/20 text-pink-400 border-pink-500/30" },
-  };
-  const c = config[type] || config.movie;
-  return (
-    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${c.bg} tracking-widest uppercase shadow-sm`}>
-      {c.label}
-    </span>
-  );
-}
-
-/* ── Movie Card ────────────────────────────── */
-function MovieCard({ movie, index: i }) {
-  const [imageError, setImageError] = useState(false);
-  const isPlaceholder = !movie.poster || movie.poster.includes("placeholder");
-  const poster = isPlaceholder || imageError ? null : movie.poster;
-  
-  const hue1 = (movie.id * 137) % 360;
-  const hue2 = (movie.id * 97) % 360;
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ delay: Math.min(i * 0.05, 0.5), duration: 0.4 }}
-      className="flex-shrink-0 snap-start"
-    >
-      <Link href={`/movie/${movie.id}?type=${movie.media_type || "movie"}`}>
-        <div className="group relative w-[200px] cursor-pointer">
-          <div className="overflow-hidden rounded-md h-[300px] bg-dark-800 relative shadow-[0_4px_20px_rgba(0,0,0,0.5)] group-hover:shadow-[0_8px_30px_rgba(229,9,20,0.3)] transition-all duration-300 transform group-hover:-translate-y-2">
-            
-            {poster ? (
-              <img
-                src={poster}
-                alt={movie.title}
-                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                onError={() => setImageError(true)}
-              />
-            ) : (
-              <div 
-                className="w-full h-full flex flex-col items-center justify-center p-4 text-center transition-transform duration-700 group-hover:scale-105"
-                style={{
-                  background: `linear-gradient(135deg, hsl(${hue1}, 70%, 20%), hsl(${hue2}, 60%, 10%))`
-                }}
-              >
-                <h3 className="font-black text-white/90 text-lg leading-tight line-clamp-4 uppercase tracking-wider font-outfit">{movie.title}</h3>
-              </div>
-            )}
-
-            <div className="absolute top-2 right-2 bg-black/80 backdrop-blur-md text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-md border border-white/10">
-              {movie.rating?.toFixed(1) || "N/A"}
-            </div>
-            
-            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
-               <MediaBadge type={movie.media_type || "movie"} />
-               <p className="mt-2 text-sm font-bold text-white line-clamp-2 leading-tight">{movie.title}</p>
-               {movie.release_date && (
-                 <p className="text-xs text-gray-400 mt-1">{movie.release_date.slice(0, 4)}</p>
-               )}
-            </div>
-          </div>
-        </div>
-      </Link>
-    </motion.div>
-  );
-}
+import { MovieCard } from "../../components/MovieCard";
 
 /* ── Hero Carousel ─────────────────────────────── */
 function HeroCarousel({ items }) {
   const [current, setCurrent] = useState(0);
   const [activeDetails, setActiveDetails] = useState(null);
   const [showTrailer, setShowTrailer] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
+  const iframeRef = useRef(null);
+
+  const toggleMute = () => {
+    if (iframeRef.current && iframeRef.current.contentWindow) {
+      const action = isMuted ? 'unMute' : 'mute';
+      iframeRef.current.contentWindow.postMessage(`{"event":"command","func":"${action}","args":""}`, '*');
+      setIsMuted(!isMuted);
+    }
+  };
 
   // Rotate carousel every 20 seconds
   useEffect(() => {
@@ -158,9 +98,10 @@ function HeroCarousel({ items }) {
 
           {/* Trailer Video - fades in when showTrailer is true, completely bright */}
           {trailer && (
-            <div className={`absolute inset-0 w-full h-full overflow-hidden pointer-events-none transition-opacity duration-1000 ${showTrailer ? 'opacity-100' : 'opacity-0'}`}>
+            <div className={`absolute inset-0 w-full h-full overflow-hidden transition-opacity duration-1000 ${showTrailer ? 'opacity-100' : 'opacity-0'}`}>
               <iframe
-                src={`https://www.youtube.com/embed/${trailer.key}?autoplay=1&mute=1&controls=0&showinfo=0&rel=0&loop=1&playlist=${trailer.key}&cc_load_policy=1&cc_lang_pref=zz&iv_load_policy=3&modestbranding=1&playsinline=1&disablekb=1`}
+                ref={iframeRef}
+                src={`https://www.youtube.com/embed/${trailer.key}?autoplay=1&mute=1&controls=0&showinfo=0&rel=0&loop=1&playlist=${trailer.key}&enablejsapi=1&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`}
                 allow="autoplay; encrypted-media"
                 className="absolute top-1/2 left-1/2 w-[100vw] h-[56.25vw] min-h-[85vh] min-w-[151.11vh] -translate-x-1/2 -translate-y-1/2 pointer-events-none"
               />
@@ -202,6 +143,20 @@ function HeroCarousel({ items }) {
               </div>
             </div>
           </motion.div>
+          
+          {showTrailer && trailer && (
+            <button 
+              onClick={toggleMute}
+              className="absolute bottom-12 right-6 md:right-12 z-50 p-3 rounded-full border border-white/30 bg-black/40 hover:bg-black/60 backdrop-blur transition-all text-white pointer-events-auto"
+              aria-label={isMuted ? "Unmute" : "Mute"}
+            >
+              {isMuted ? (
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
+              )}
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -311,7 +266,9 @@ function HomeContent() {
         {loading ? (
           <div className="scroll-row">
             {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="w-[200px] h-[300px] rounded-md bg-dark-800 animate-pulse flex-shrink-0" />
+              <div key={i} className="w-[140px] md:w-[200px] h-[210px] md:h-[300px] rounded-md bg-dark-800 relative overflow-hidden flex-shrink-0">
+                <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/5 to-transparent" />
+              </div>
             ))}
           </div>
         ) : hasContent ? (
@@ -329,7 +286,12 @@ function HomeContent() {
 
             {Object.entries(filteredCategories).map(([cat, movies]) => (
               <section key={cat}>
-                <h2 className="text-2xl font-bold text-white mb-4 px-2 font-outfit">{cat}</h2>
+                <div className="flex items-center justify-between mb-4 px-2">
+                  <h2 className="text-2xl font-bold text-white font-outfit">{cat}</h2>
+                  <Link href={`/category/${encodeURIComponent(cat)}?tab=${tab}`} className="text-sm font-bold text-gray-400 hover:text-white transition-colors">
+                    See All &gt;
+                  </Link>
+                </div>
                 <div className="scroll-row">
                   {movies.map((m, i) => (
                     <MovieCard key={`${m.id}-${cat.replace(/\s+/g, '-')}`} movie={m} index={i} />
