@@ -282,8 +282,8 @@ function HomeContent() {
   let topSectionTitle = "Top Trending Now";
   let topSectionItems = filteredTrending;
   
-  if (topSectionItems.length < 6 && Object.values(filteredCategories).length > 0) {
-    // Fallback if TMDB trending returns too few items for this specific tab (e.g., Anime)
+  // If the Top Trending row isn't completely full (less than 15 items), fill the rest from the popular categories below
+  if (topSectionItems.length < 15 && Object.values(filteredCategories).length > 0) {
     const extraItems = Object.values(filteredCategories).flat();
     const existingIds = new Set(topSectionItems.map(m => m.id));
     const uniqueExtras = extraItems.filter(m => {
