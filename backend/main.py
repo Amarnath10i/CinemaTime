@@ -24,13 +24,26 @@ app.add_middleware(
 
 # Load Data
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-movies = pickle.load(open(os.path.join(BASE_DIR, "movies.pkl"), "rb"))
-index = faiss.read_index(os.path.join(BASE_DIR, "movies.index"))
+try:
+    movies = pickle.load(open(os.path.join(BASE_DIR, "movies.pkl"), "rb"))
+    index = faiss.read_index(os.path.join(BASE_DIR, "movies.index"))
+    DATA_LOADED = True
+    print(f"✅ Data loaded successfully! {len(movies)} movies in database.")
+except Exception as e:
+    print(f"❌ ERROR loading data: {e}")
+    movies = pd.DataFrame()
+    index = None
+    DATA_LOADED = False
 
 TMDB_API_KEY = "10e0997eacd8c14e60ef40b8a46f695b"
 TMDB_BASE = "https://api.themoviedb.org/3"
 POSTER_BASE = "https://image.tmdb.org/t/p/w500"
 PLACEHOLDER = "https://via.placeholder.com/500x750?text=No+Poster"
+
+
+@app.get("/")
+def root():
+    return {"status": "ok", "data_loaded": DATA_LOADED, "movie_count": len(movies)}
 
 
 def safe_get(row, col, default=""):
