@@ -1,6 +1,4 @@
 __pycache__/
-*.pkl
-*.index
 .env
 frontend/node_modules/
 frontend/.next/
