@@ -1,35 +1,66 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+
 body {
-    background-color: #141414;
-    color: white;
-    font-family: Arial, sans-serif;
+    background-color: #0b0b0c;
+    color: #e0e0e0;
+    font-family: 'Inter', sans-serif;
+    margin: 0;
+    padding: 0;
 }
 
 .title {
     text-align: center;
-    font-size: 42px;
-    font-weight: bold;
-    color: #e50914;
-    margin-bottom: 30px;
+    font-size: 48px;
+    font-weight: 800;
+    background: linear-gradient(90deg, #e50914 0%, #ff5e62 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 40px;
+    letter-spacing: -1px;
 }
 
 .movie-card {
-    background-color: #1f1f1f;
-    padding: 12px;
-    border-radius: 10px;
+    background: rgba(31, 31, 31, 0.6);
+    backdrop-filter: blur(10px);
+    padding: 15px;
+    border-radius: 12px;
     text-align: center;
     font-size: 16px;
-    margin-top: 10px;
+    margin-top: 15px;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.movie-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 12px 40px rgba(229, 9, 20, 0.2);
+    border-color: rgba(229, 9, 20, 0.5);
 }
 
 .stButton>button {
-    background-color: #e50914;
+    background: linear-gradient(135deg, #e50914 0%, #b20710 100%);
     color: white;
-    border-radius: 6px;
-    padding: 10px 20px;
+    border-radius: 8px;
+    padding: 12px 24px;
     border: none;
     font-size: 16px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(229, 9, 20, 0.3);
 }
 
 .stButton>button:hover {
-    background-color: #b20710;
+    transform: scale(1.05);
+    box-shadow: 0 6px 20px rgba(229, 9, 20, 0.5);
+    color: #ffffff;
+}
+
+/* Make images round and add hover effect */
+img {
+    border-radius: 8px;
+    transition: transform 0.4s ease;
+}
+img:hover {
+    transform: scale(1.03);
 }

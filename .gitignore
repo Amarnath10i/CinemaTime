@@ -1,14 +1,21 @@
-# Jupyter
-.ipynb_checkpoints/
-
-# Python
+# Dependencies
+node_modules/
 __pycache__/
 *.pyc
-
-# Secrets
-api key.txt
 .env
 
-# Large files
+# Model artifacts (too large for GitHub)
 *.pkl
+*.index
+*.pt
+
+# Next.js
+.next/
+out/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Datasets (too large)
 *.csv
