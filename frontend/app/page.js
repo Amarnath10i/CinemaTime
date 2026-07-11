@@ -278,10 +278,16 @@ function HomeContent() {
   let topSectionTitle = "Top Trending Now";
   let topSectionItems = filteredTrending;
   
-  if (topSectionItems.length === 0 && Object.values(filteredCategories).length > 0) {
-    // Fallback if TMDB trending returns 0 items for this specific tab (e.g., Anime)
-    topSectionItems = Object.values(filteredCategories).flat().slice(0, 15);
-    topSectionTitle = "Top Trending Now";
+  if (topSectionItems.length < 6 && Object.values(filteredCategories).length > 0) {
+    // Fallback if TMDB trending returns too few items for this specific tab (e.g., Anime)
+    const extraItems = Object.values(filteredCategories).flat();
+    const existingIds = new Set(topSectionItems.map(m => m.id));
+    const uniqueExtras = extraItems.filter(m => {
+      if (existingIds.has(m.id)) return false;
+      existingIds.add(m.id);
+      return true;
+    });
+    topSectionItems = [...topSectionItems, ...uniqueExtras].slice(0, 15);
   }
 
   let carouselItems = topSectionItems.length > 0 ? topSectionItems : filteredTrending;
