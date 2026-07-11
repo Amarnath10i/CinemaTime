@@ -2,10 +2,14 @@ import pickle
 import numpy as np
 import faiss
 import requests
+import urllib3
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 import os
+
+# Disable SSL warnings (needed when VPN causes cert issues)
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 app = FastAPI(title="CineMatch API")
 
@@ -42,7 +46,7 @@ def tmdb_fetch(tmdb_id, media_type="movie"):
     mt = "movie" if media_type in ("movie", "") else "tv"
     try:
         url = f"{TMDB_BASE}/{mt}/{tmdb_id}?api_key={TMDB_API_KEY}&language=en-US&append_to_response=videos,credits"
-        return requests.get(url, timeout=8).json()
+        return requests.get(url, timeout=10, verify=False).json()
     except Exception:
         return {}
 
@@ -141,8 +145,39 @@ def movie_titles(q: Optional[str] = Query(None)):
 @app.get("/api/movie/{tmdb_id}")
 def movie_detail(tmdb_id: int):
     match = movies[movies["id"] == tmdb_id]
+    
     if match.empty:
-        return {"error": "Not found"}
+        # Movie not in local DB — fetch live from TMDB
+        tmdb_data = tmdb_fetch(tmdb_id, "movie")
+        if not tmdb_data or "id" not in tmdb_data:
+            tmdb_data = tmdb_fetch(tmdb_id, "tv")
+            if not tmdb_data or "id" not in tmdb_data:
+                return {"error": "Not found"}
+        
+        mt = "tv" if "first_air_date" in tmdb_data else "movie"
+        title = tmdb_data.get("title", tmdb_data.get("name", ""))
+        poster_path = tmdb_data.get("poster_path", "")
+        backdrop_path = tmdb_data.get("backdrop_path", "")
+        genres_list = tmdb_data.get("genres", [])
+        genres_str = ", ".join([g["name"] for g in genres_list])
+        
+        return {
+            "id": tmdb_id,
+            "title": title,
+            "overview": tmdb_data.get("overview", ""),
+            "genres": genres_str,
+            "cast": "",
+            "rating": tmdb_data.get("vote_average", 0),
+            "poster": f"{POSTER_BASE}{poster_path}" if poster_path else PLACEHOLDER,
+            "backdrop": f"https://image.tmdb.org/t/p/original{backdrop_path}" if backdrop_path else "",
+            "release_date": tmdb_data.get("release_date", tmdb_data.get("first_air_date", "")),
+            "runtime": tmdb_data.get("runtime", tmdb_data.get("episode_run_time", [0])[0] if tmdb_data.get("episode_run_time") else 0),
+            "tagline": tmdb_data.get("tagline", ""),
+            "media_type": mt,
+            "trailers": get_trailers(tmdb_data),
+            "cast_details": get_cast(tmdb_data),
+        }
+        
     row = match.iloc[0]
     media_type = row.get("media_type") if "media_type" in movies.columns else "movie"
     tmdb_data = tmdb_fetch(tmdb_id, media_type)
@@ -153,7 +188,9 @@ def movie_detail(tmdb_id: int):
 def recommend(tmdb_id: int, n: int = 10):
     match = movies[movies["id"] == tmdb_id]
     if match.empty:
-        return {"error": "Not found"}
+        # If movie isn't in local DB, we can't do FAISS search
+        return []
+        
     movie_idx = match.index[0]
     query_vector = index.reconstruct(int(movie_idx))
     query_vector = np.array([query_vector])
@@ -173,7 +210,7 @@ def recommend(tmdb_id: int, n: int = 10):
 def cast_movies(person_id: int):
     try:
         url = f"{TMDB_BASE}/person/{person_id}/combined_credits?api_key={TMDB_API_KEY}&language=en-US"
-        data = requests.get(url, timeout=8).json()
+        data = requests.get(url, timeout=10, verify=False).json()
         cast_list = data.get("cast", [])
         cast_list.sort(key=lambda x: x.get("popularity", 0), reverse=True)
         results = []
@@ -189,7 +226,7 @@ def cast_movies(person_id: int):
                 "media_type": m.get("media_type", "movie"),
             })
         person_url = f"{TMDB_BASE}/person/{person_id}?api_key={TMDB_API_KEY}&language=en-US"
-        person_data = requests.get(person_url, timeout=8).json()
+        person_data = requests.get(person_url, timeout=10, verify=False).json()
         person_info = {
             "name": person_data.get("name", ""),
             "biography": person_data.get("biography", ""),
@@ -206,7 +243,7 @@ def cast_movies(person_id: int):
 def trending():
     try:
         url = f"{TMDB_BASE}/trending/all/week?api_key={TMDB_API_KEY}&language=en-US"
-        data = requests.get(url, timeout=8).json()
+        data = requests.get(url, timeout=10, verify=False).json()
         results = []
         for r in data.get("results", [])[:20]:
             poster = f"{POSTER_BASE}{r['poster_path']}" if r.get("poster_path") else PLACEHOLDER
