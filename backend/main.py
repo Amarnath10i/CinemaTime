@@ -370,28 +370,33 @@ def assistant_chat(req: ChatRequest):
 @app.get("/api/trending")
 def trending():
     try:
-        url = f"{TMDB_BASE}/trending/all/week?api_key={TMDB_API_KEY}&language=en-US"
-        data = requests.get(url, timeout=5, verify=False).json()
-        if "results" not in data or not data["results"]:
-            raise ValueError("No results from TMDB")
         results = []
-        for r in data.get("results", [])[:20]:
-            poster = f"{POSTER_BASE}{r['poster_path']}" if r.get("poster_path") else PLACEHOLDER
-            backdrop = f"https://image.tmdb.org/t/p/original{r['backdrop_path']}" if r.get("backdrop_path") else ""
-            results.append({
-                "id": r["id"],
-                "title": r.get("title", r.get("name", "Unknown")),
-                "poster": poster,
-                "backdrop": backdrop,
-                "overview": r.get("overview", ""),
-                "rating": r.get("vote_average", 0),
-                "release_date": r.get("release_date", r.get("first_air_date", "")),
-                "media_type": r.get("media_type", "movie"),
-            })
+        seen_ids = set()
+        # Fetch 3 pages of trending (60 items) for a richer See All page
+        for page in range(1, 4):
+            url = f"{TMDB_BASE}/trending/all/week?api_key={TMDB_API_KEY}&language=en-US&page={page}"
+            data = requests.get(url, timeout=5, verify=False).json()
+            for r in data.get("results", []):
+                if r["id"] in seen_ids:
+                    continue
+                seen_ids.add(r["id"])
+                poster = f"{POSTER_BASE}{r['poster_path']}" if r.get("poster_path") else PLACEHOLDER
+                backdrop = f"https://image.tmdb.org/t/p/original{r['backdrop_path']}" if r.get("backdrop_path") else ""
+                results.append({
+                    "id": r["id"],
+                    "title": r.get("title", r.get("name", "Unknown")),
+                    "poster": poster,
+                    "backdrop": backdrop,
+                    "overview": r.get("overview", ""),
+                    "rating": r.get("vote_average", 0),
+                    "release_date": r.get("release_date", r.get("first_air_date", "")),
+                    "media_type": r.get("media_type", "movie"),
+                    "genres": ", ".join([str(g) for g in r.get("genre_ids", [])]),
+                })
         return results
     except Exception as e:
         # Fallback to local most popular movies if TMDB Live Trending is rate limited or blocked
-        subset = movies.head(20)
+        subset = movies.head(40)
         results = []
         for _, row in subset.iterrows():
             results.append(row_to_dict(row))
