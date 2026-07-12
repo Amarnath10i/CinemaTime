@@ -101,7 +101,7 @@ function HeroCarousel({ items }) {
             <div className={`absolute inset-0 w-full h-full overflow-hidden transition-opacity duration-1000 ${showTrailer ? 'opacity-100' : 'opacity-0'}`}>
               <iframe
                 ref={iframeRef}
-                src={`https://www.youtube.com/embed/${trailer.key}?autoplay=1&mute=${isMuted ? 1 : 0}&controls=0&showinfo=0&rel=0&loop=1&playlist=${trailer.key}&enablejsapi=1&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`}
+                src={`https://www.youtube.com/embed/${trailer.key}?autoplay=1&mute=${isMuted ? 1 : 0}&controls=0&showinfo=0&rel=0&loop=1&playlist=${trailer.key}&enablejsapi=1&origin=${typeof window !== 'undefined' ? window.location.origin : ''}&iv_load_policy=3&modestbranding=1&playsinline=1&disablekb=1`}
                 allow="autoplay; encrypted-media"
                 className="absolute top-1/2 left-1/2 w-[100vw] h-[56.25vw] min-h-[85vh] min-w-[151.11vh] -translate-x-1/2 -translate-y-1/2 pointer-events-none"
               />
