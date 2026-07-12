@@ -147,13 +147,13 @@ function HeroCarousel({ items }) {
           {showTrailer && trailer && (
             <button 
               onClick={toggleMute}
-              className="absolute bottom-12 right-6 md:right-12 z-50 p-2 transition-all text-white/70 hover:text-white drop-shadow-md pointer-events-auto hover:scale-110"
+              className="absolute bottom-12 right-6 md:right-12 z-50 p-2 transition-all text-white/40 hover:text-white/90 drop-shadow-md pointer-events-auto hover:scale-105"
               aria-label={isMuted ? "Unmute" : "Mute"}
             >
               {isMuted ? (
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>
               ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
               )}
             </button>
           )}
@@ -275,9 +275,9 @@ function HomeContent() {
           <>
             {topSectionItems.length > 0 && (
               <section>
-                <div className="flex items-center gap-4 mb-4 px-2">
-                  <h2 className="text-2xl font-bold text-white font-outfit">{topSectionTitle}</h2>
-                  <Link href={`/category/Trending?tab=${tab}`} className="text-sm font-bold text-gray-400 hover:text-white transition-colors">
+                <div className="flex items-end justify-between px-2 mb-1">
+                  <h2 className="text-2xl font-bold text-white font-outfit leading-none">{topSectionTitle}</h2>
+                  <Link href={`/category/Trending?tab=${tab}`} className="text-[11px] font-bold text-gray-400 hover:text-white transition-colors uppercase tracking-widest leading-none">
                     See All
                   </Link>
                 </div>
@@ -291,9 +291,9 @@ function HomeContent() {
 
             {Object.entries(filteredCategories).map(([cat, movies]) => (
               <section key={cat}>
-                <div className="flex items-center gap-4 mb-4 px-2">
-                  <h2 className="text-2xl font-bold text-white font-outfit">{cat}</h2>
-                  <Link href={`/category/${encodeURIComponent(cat)}?tab=${tab}`} className="text-sm font-bold text-gray-400 hover:text-white transition-colors">
+                <div className="flex items-end justify-between px-2 mb-1">
+                  <h2 className="text-2xl font-bold text-white font-outfit leading-none">{cat}</h2>
+                  <Link href={`/category/${encodeURIComponent(cat)}?tab=${tab}`} className="text-[11px] font-bold text-gray-400 hover:text-white transition-colors uppercase tracking-widest leading-none">
                     See All
                   </Link>
                 </div>
