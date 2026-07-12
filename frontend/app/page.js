@@ -323,8 +323,21 @@ function HomeContent() {
             ))}
           </>
         ) : (
-          <div className="pt-24 text-center">
-            <p className="text-gray-500 text-xl">No content available for this category.</p>
+          <div className="pt-24 text-center px-4 max-w-2xl mx-auto">
+            <h3 className="text-2xl font-bold text-white mb-4">No content available for this category.</h3>
+            <p className="text-gray-400 text-lg mb-8">
+              It looks like your local database doesn&apos;t have any {tab === 'tv' ? 'TV Shows' : tab === 'anime' ? 'Anime' : 'items'} yet!
+            </p>
+            <div className="bg-white/5 border border-white/10 rounded-xl p-6 text-left inline-block">
+              <p className="text-gray-300 font-medium mb-3">To fix this, run the dataset builder in your terminal:</p>
+              <code className="block bg-black/50 text-[#00b4ff] p-4 rounded-lg font-mono text-sm shadow-inner">
+                cd backend<br/>
+                python build_dataset.py
+              </code>
+              <p className="text-gray-400 text-sm mt-4">
+                This will automatically fetch thousands of Movies, TV Shows, and Anime directly from TMDB and rebuild your search index!
+              </p>
+            </div>
           </div>
         )}
       </div>

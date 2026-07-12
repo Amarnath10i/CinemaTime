@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 import os
 import pandas as pd
+from pydantic import BaseModel
 
 # Disable SSL warnings (needed when VPN causes cert issues)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
