@@ -25,7 +25,24 @@ module.exports = {
       keyframes: {
         shimmer: {
           '100%': { transform: 'translateX(100%)' },
-        }
+        },
+        atomSpin1: {
+          from: { transform: 'rotate(0deg)' },
+          to: { transform: 'rotate(360deg)' },
+        },
+        atomSpin2: {
+          from: { transform: 'rotate(60deg)' },
+          to: { transform: 'rotate(420deg)' },
+        },
+        atomSpin3: {
+          from: { transform: 'rotate(120deg)' },
+          to: { transform: 'rotate(480deg)' },
+        },
+      },
+      animation: {
+        atomSpin1: 'atomSpin1 3s linear infinite',
+        atomSpin2: 'atomSpin2 4s linear infinite',
+        atomSpin3: 'atomSpin3 5s linear infinite',
       }
     },
   },

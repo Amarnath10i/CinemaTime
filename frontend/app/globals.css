@@ -67,3 +67,17 @@
     scroll-snap-align: center;
   }
 }
+
+/* Atom icon animations */
+@keyframes atomSpin1 {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes atomSpin2 {
+  from { transform: rotate(60deg) rotate(0deg); }
+  to { transform: rotate(60deg) rotate(360deg); }
+}
+@keyframes atomSpin3 {
+  from { transform: rotate(120deg) rotate(0deg); }
+  to { transform: rotate(120deg) rotate(360deg); }
+}

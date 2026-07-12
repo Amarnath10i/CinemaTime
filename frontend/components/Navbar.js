@@ -2,6 +2,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
+import { AIAssistant } from "./AIAssistant";
 
 export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -25,6 +26,8 @@ export function Navbar() {
         </div>
 
         <div className="flex items-center gap-4">
+          <AIAssistant />
+          
           <button 
             className="md:hidden p-2 text-white hover:text-gray-300 transition-colors"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
