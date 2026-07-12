@@ -16,10 +16,16 @@ export default function CategoryPage({ params }) {
     const fetchMovies = async () => {
       setLoading(true);
       try {
-        const typeQuery = (tab !== "all" && tab !== "anime") ? `&media_type=${tab}` : "";
-        const fetchLimit = tab === "anime" ? 200 : 60;
+        let url;
+        if (decodedGenre.toLowerCase() === "trending") {
+          url = `/api/trending`;
+        } else {
+          const typeQuery = (tab !== "all" && tab !== "anime") ? `&media_type=${tab}` : "";
+          const fetchLimit = tab === "anime" ? 200 : 60;
+          url = `/api/movies/category/${encodeURIComponent(decodedGenre)}?n=${fetchLimit}${typeQuery}`;
+        }
         
-        const res = await fetch(`/api/movies/category/${encodeURIComponent(decodedGenre)}?n=${fetchLimit}${typeQuery}`);
+        const res = await fetch(url);
         const data = await res.json();
         
         if (Array.isArray(data)) {
