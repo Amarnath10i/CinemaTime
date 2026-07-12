@@ -101,7 +101,7 @@ function HeroCarousel({ items }) {
             <div className={`absolute inset-0 w-full h-full overflow-hidden transition-opacity duration-1000 ${showTrailer ? 'opacity-100' : 'opacity-0'}`}>
               <iframe
                 ref={iframeRef}
-                src={`https://www.youtube.com/embed/${trailer.key}?autoplay=1&mute=1&controls=0&showinfo=0&rel=0&loop=1&playlist=${trailer.key}&enablejsapi=1&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`}
+                src={`https://www.youtube.com/embed/${trailer.key}?autoplay=1&mute=${isMuted ? 1 : 0}&controls=0&showinfo=0&rel=0&loop=1&playlist=${trailer.key}&enablejsapi=1&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`}
                 allow="autoplay; encrypted-media"
                 className="absolute top-1/2 left-1/2 w-[100vw] h-[56.25vw] min-h-[85vh] min-w-[151.11vh] -translate-x-1/2 -translate-y-1/2 pointer-events-none"
               />
@@ -147,7 +147,7 @@ function HeroCarousel({ items }) {
           {showTrailer && trailer && (
             <button 
               onClick={toggleMute}
-              className="absolute bottom-12 right-6 md:right-12 z-50 p-3 rounded-full border border-white/30 bg-black/40 hover:bg-black/60 backdrop-blur transition-all text-white pointer-events-auto"
+              className="absolute bottom-12 right-6 md:right-12 z-50 p-2 transition-all text-white/70 hover:text-white drop-shadow-md pointer-events-auto hover:scale-110"
               aria-label={isMuted ? "Unmute" : "Mute"}
             >
               {isMuted ? (
