@@ -1,7 +1,6 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
-import { SearchModal } from "../app/SearchModal";
 import { AnimatePresence, motion } from "framer-motion";
 
 export function Navbar() {
@@ -26,8 +25,6 @@ export function Navbar() {
         </div>
 
         <div className="flex items-center gap-4">
-          <SearchModal />
-          
           <button 
             className="md:hidden p-2 text-white hover:text-gray-300 transition-colors"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}

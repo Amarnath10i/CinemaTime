@@ -284,9 +284,9 @@ class ChatRequest(BaseModel):
 @app.post("/api/assistant/chat")
 def assistant_chat(req: ChatRequest):
     try:
-        msg = req.message.lower()
-        # Very simple heuristic to extract a person's name
-        # e.g., "movies starring tom cruise", "directed by christopher nolan"
+        msg = req.message.lower().strip()
+        
+        # 1. Try to extract a person's name
         name_to_search = ""
         keywords = ["starring", "actor", "actress", "director", "directed by", "movies by", "movies with", "with", "by"]
         
@@ -294,60 +294,75 @@ def assistant_chat(req: ChatRequest):
             if kw in msg:
                 parts = msg.split(kw)
                 if len(parts) > 1:
-                    # take the part after the keyword and clean it up
                     extracted = parts[1].strip()
-                    # remove trailing punctuation and common words
                     for word in ["please", "?", ".", "movies"]:
                         extracted = extracted.replace(word, "").strip()
                     if extracted:
                         name_to_search = extracted
                         break
-        
-        if not name_to_search:
-            # If no keyword found, just try to search the whole string as a person's name 
-            # (or we could default to the semantic search, but they asked for person search)
-            name_to_search = msg.replace("show me", "").replace("movies", "").replace("please", "").strip()
 
-        if not name_to_search:
-            return {"reply": "I'm your Cinema AI! You can ask me for movies by specific actors or directors, like 'movies starring Tom Cruise'."}
-
-        # 1. Search for the person
-        person_url = f"{TMDB_BASE}/search/person?api_key={TMDB_API_KEY}&query={name_to_search}&language=en-US"
-        person_data = requests.get(person_url, timeout=10, verify=False).json()
-        
-        if not person_data.get("results"):
-            return {"reply": f"Sorry, I couldn't find anyone named '{name_to_search.title()}'."}
+        # 2. If it looks like a person query, hit TMDB Person Search
+        if name_to_search:
+            person_url = f"{TMDB_BASE}/search/person?api_key={TMDB_API_KEY}&query={name_to_search}&language=en-US"
+            person_data = requests.get(person_url, timeout=10, verify=False).json()
             
-        person = person_data["results"][0]
-        person_id = person["id"]
-        person_name = person["name"]
+            if person_data.get("results"):
+                person = person_data["results"][0]
+                person_id = person["id"]
+                person_name = person["name"]
+                
+                discover_url = f"{TMDB_BASE}/discover/movie?api_key={TMDB_API_KEY}&with_people={person_id}&sort_by=popularity.desc&language=en-US"
+                discover_data = requests.get(discover_url, timeout=10, verify=False).json()
+                
+                results = []
+                for r in discover_data.get("results", [])[:15]:
+                    poster = f"{POSTER_BASE}{r['poster_path']}" if r.get("poster_path") else PLACEHOLDER
+                    results.append({
+                        "id": r["id"],
+                        "title": r.get("title", r.get("name", "Unknown")),
+                        "poster": poster,
+                        "rating": r.get("vote_average", 0),
+                        "media_type": "movie",
+                    })
+                    
+                if results:
+                    return {"reply": f"Here are the top movies for {person_name}:", "movies": results}
+
+        # 3. If no person found (or no keywords), try a simple title search in our local DB
+        clean_msg = msg.replace("show me", "").replace("find", "").replace("movies", "").replace("please", "").strip()
         
-        # 2. Get their movies
-        discover_url = f"{TMDB_BASE}/discover/movie?api_key={TMDB_API_KEY}&with_people={person_id}&sort_by=popularity.desc&language=en-US"
-        discover_data = requests.get(discover_url, timeout=10, verify=False).json()
+        if not clean_msg:
+            return {"reply": "I'm your Cinema AI! You can search for movies or ask for specific actors/directors."}
+
+        # Check local DB
+        if not movies.empty:
+            mask = movies["title"].str.contains(clean_msg, case=False, na=False)
+            subset = movies[mask].head(15)
+            if not subset.empty:
+                local_results = [row_to_dict(r) for _, r in subset.iterrows()]
+                return {"reply": f"Here is what I found for '{clean_msg.title()}':", "movies": local_results}
+
+        # 4. Fallback: Search TMDB Multi-Search directly
+        search_url = f"{TMDB_BASE}/search/multi?api_key={TMDB_API_KEY}&query={clean_msg}&language=en-US"
+        search_data = requests.get(search_url, timeout=10, verify=False).json()
         
         results = []
-        for r in discover_data.get("results", [])[:15]:
-            poster = f"{POSTER_BASE}{r['poster_path']}" if r.get("poster_path") else PLACEHOLDER
-            backdrop = f"https://image.tmdb.org/t/p/original{r['backdrop_path']}" if r.get("backdrop_path") else ""
-            results.append({
-                "id": r["id"],
-                "title": r.get("title", r.get("name", "Unknown")),
-                "poster": poster,
-                "backdrop": backdrop,
-                "overview": r.get("overview", ""),
-                "rating": r.get("vote_average", 0),
-                "release_date": r.get("release_date", r.get("first_air_date", "")),
-                "media_type": "movie",
-            })
+        for r in search_data.get("results", [])[:15]:
+            if r.get("media_type") in ("movie", "tv"):
+                poster = f"{POSTER_BASE}{r['poster_path']}" if r.get("poster_path") else PLACEHOLDER
+                results.append({
+                    "id": r["id"],
+                    "title": r.get("title", r.get("name", "Unknown")),
+                    "poster": poster,
+                    "rating": r.get("vote_average", 0),
+                    "media_type": r.get("media_type", "movie"),
+                })
+                
+        if results:
+            return {"reply": f"Here is what I found for '{clean_msg.title()}':", "movies": results}
             
-        if not results:
-            return {"reply": f"I found {person_name}, but couldn't find any popular movies for them."}
-            
-        return {
-            "reply": f"Here are the top movies for {person_name}:",
-            "movies": results
-        }
+        return {"reply": f"Sorry, I couldn't find anything matching '{clean_msg.title()}'."}
+        
     except Exception as e:
         return {"reply": "Sorry, I ran into an issue finding those movies."}
 
