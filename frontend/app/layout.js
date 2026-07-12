@@ -1,5 +1,6 @@
 import "./globals.css";
 import { Navbar } from "../components/Navbar";
+import { AIAssistant } from "../components/AIAssistant";
 
 export const metadata = {
   title: "CinemaTime | Recommendations",
@@ -17,6 +18,8 @@ export default function RootLayout({ children }) {
         <div className="flex-1">
           {children}
         </div>
+
+        <AIAssistant />
 
       </body>
     </html>

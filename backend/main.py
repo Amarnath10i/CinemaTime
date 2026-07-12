@@ -278,6 +278,79 @@ def cast_movies(person_id: int):
         return {"error": str(e)}
 
 
+class ChatRequest(BaseModel):
+    message: str
+
+@app.post("/api/assistant/chat")
+def assistant_chat(req: ChatRequest):
+    try:
+        msg = req.message.lower()
+        # Very simple heuristic to extract a person's name
+        # e.g., "movies starring tom cruise", "directed by christopher nolan"
+        name_to_search = ""
+        keywords = ["starring", "actor", "actress", "director", "directed by", "movies by", "movies with", "with", "by"]
+        
+        for kw in keywords:
+            if kw in msg:
+                parts = msg.split(kw)
+                if len(parts) > 1:
+                    # take the part after the keyword and clean it up
+                    extracted = parts[1].strip()
+                    # remove trailing punctuation and common words
+                    for word in ["please", "?", ".", "movies"]:
+                        extracted = extracted.replace(word, "").strip()
+                    if extracted:
+                        name_to_search = extracted
+                        break
+        
+        if not name_to_search:
+            # If no keyword found, just try to search the whole string as a person's name 
+            # (or we could default to the semantic search, but they asked for person search)
+            name_to_search = msg.replace("show me", "").replace("movies", "").replace("please", "").strip()
+
+        if not name_to_search:
+            return {"reply": "I'm your Cinema AI! You can ask me for movies by specific actors or directors, like 'movies starring Tom Cruise'."}
+
+        # 1. Search for the person
+        person_url = f"{TMDB_BASE}/search/person?api_key={TMDB_API_KEY}&query={name_to_search}&language=en-US"
+        person_data = requests.get(person_url, timeout=10, verify=False).json()
+        
+        if not person_data.get("results"):
+            return {"reply": f"Sorry, I couldn't find anyone named '{name_to_search.title()}'."}
+            
+        person = person_data["results"][0]
+        person_id = person["id"]
+        person_name = person["name"]
+        
+        # 2. Get their movies
+        discover_url = f"{TMDB_BASE}/discover/movie?api_key={TMDB_API_KEY}&with_people={person_id}&sort_by=popularity.desc&language=en-US"
+        discover_data = requests.get(discover_url, timeout=10, verify=False).json()
+        
+        results = []
+        for r in discover_data.get("results", [])[:15]:
+            poster = f"{POSTER_BASE}{r['poster_path']}" if r.get("poster_path") else PLACEHOLDER
+            backdrop = f"https://image.tmdb.org/t/p/original{r['backdrop_path']}" if r.get("backdrop_path") else ""
+            results.append({
+                "id": r["id"],
+                "title": r.get("title", r.get("name", "Unknown")),
+                "poster": poster,
+                "backdrop": backdrop,
+                "overview": r.get("overview", ""),
+                "rating": r.get("vote_average", 0),
+                "release_date": r.get("release_date", r.get("first_air_date", "")),
+                "media_type": "movie",
+            })
+            
+        if not results:
+            return {"reply": f"I found {person_name}, but couldn't find any popular movies for them."}
+            
+        return {
+            "reply": f"Here are the top movies for {person_name}:",
+            "movies": results
+        }
+    except Exception as e:
+        return {"reply": "Sorry, I ran into an issue finding those movies."}
+
 @app.get("/api/trending")
 def trending():
     try:
