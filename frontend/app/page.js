@@ -249,9 +249,26 @@ function HomeContent() {
     topSectionItems = [...topSectionItems, ...uniqueExtras].slice(0, 15);
   }
 
-  let carouselItems = topSectionItems.length > 0 ? topSectionItems : filteredTrending;
-  if (carouselItems.length === 0 && Object.values(filteredCategories).length > 0) {
-    carouselItems = Object.values(filteredCategories).flat().slice(0, 5);
+  // Create a diverse mix for the Hero Carousel
+  let carouselItems = [];
+  const allCategoryArrays = Object.values(filteredCategories);
+  
+  if (filteredTrending.length > 0 || allCategoryArrays.length > 0) {
+    const mix = new Map();
+    
+    // Add top 2 trending
+    filteredTrending.slice(0, 2).forEach(m => mix.set(m.id, m));
+    
+    // Add top items from every category (ensures mix of Movies, TV Shows, Anime, and Popular genres)
+    allCategoryArrays.forEach(catArr => {
+      if (catArr.length > 0) mix.set(catArr[0].id, catArr[0]);
+      if (catArr.length > 1) mix.set(catArr[1].id, catArr[1]);
+    });
+    
+    // Add a few more trending as fallback
+    filteredTrending.slice(2, 6).forEach(m => mix.set(m.id, m));
+    
+    carouselItems = Array.from(mix.values()).slice(0, 6);
   }
 
   const hasContent = topSectionItems.length > 0 || Object.keys(filteredCategories).length > 0;

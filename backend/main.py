@@ -98,14 +98,12 @@ def get_trailers(tmdb_data):
     videos = tmdb_data.get("videos", {}).get("results", [])
     trailers = []
     for v in videos:
-        if v.get("site") == "YouTube" and v.get("type") in ("Trailer", "Teaser", "Opening Credits"):
-            # Filter out vertical videos / shorts
+        if v.get("site") == "YouTube" and v.get("type") == "Trailer":
             name_lower = v.get("name", "").lower()
-            if any(word in name_lower for word in ["short", "vertical", "glimpse", "tiktok", "reel"]):
+            if any(word in name_lower for word in ["short", "vertical", "glimpse", "glimps", "tiktok", "reel", "teaser", "promo", "preview"]):
                 continue
             trailers.append({"name": v["name"], "key": v["key"], "site": v["site"], "type": v["type"]})
     return trailers
-
 
 def get_cast(tmdb_data, limit=10):
     cast = tmdb_data.get("credits", {}).get("cast", [])
