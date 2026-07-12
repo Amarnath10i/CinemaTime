@@ -31,7 +31,12 @@ export default function CategoryPage({ params }) {
         if (Array.isArray(data)) {
           let filtered = data;
           if (tab === "anime") {
-            filtered = data.filter(m => (m.genres || "").includes("Animation") || decodedGenre === "Animation");
+            filtered = data.filter(m => {
+              const genres = (m.genres || "").toLowerCase();
+              const title = (m.title || "").toLowerCase();
+              return genres.includes("animation") || genres.includes("16") ||
+                title.match(/anime|naruto|one piece|dragon ball|jujutsu|demon slayer|attack on titan|bleach|my hero/);
+            });
           } else if (tab !== "all") {
             filtered = data.filter(m => m.media_type === tab);
           }
