@@ -275,7 +275,12 @@ function HomeContent() {
           <>
             {topSectionItems.length > 0 && (
               <section>
-                <h2 className="text-2xl font-bold text-white mb-4 px-2 font-outfit">{topSectionTitle}</h2>
+                <div className="flex items-center gap-4 mb-4 px-2">
+                  <h2 className="text-2xl font-bold text-white font-outfit">{topSectionTitle}</h2>
+                  <Link href={`/category/Trending?tab=${tab}`} className="text-sm font-bold text-gray-400 hover:text-white transition-colors">
+                    See All
+                  </Link>
+                </div>
                 <div className="scroll-row">
                   {topSectionItems.map((m, i) => (
                     <MovieCard key={`${m.id}-top`} movie={m} index={i} />
@@ -286,10 +291,10 @@ function HomeContent() {
 
             {Object.entries(filteredCategories).map(([cat, movies]) => (
               <section key={cat}>
-                <div className="flex items-center justify-between mb-4 px-2">
+                <div className="flex items-center gap-4 mb-4 px-2">
                   <h2 className="text-2xl font-bold text-white font-outfit">{cat}</h2>
                   <Link href={`/category/${encodeURIComponent(cat)}?tab=${tab}`} className="text-sm font-bold text-gray-400 hover:text-white transition-colors">
-                    See All &gt;
+                    See All
                   </Link>
                 </div>
                 <div className="scroll-row">
