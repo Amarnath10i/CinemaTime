@@ -278,7 +278,7 @@ function HomeContent() {
       
       <HeroCarousel items={carouselItems} />
 
-      <div className="px-6 md:px-12 -mt-12 relative z-20 space-y-12">
+      <div className="px-3 md:px-6 -mt-12 relative z-20 space-y-8">
         
         {loading ? (
           <div className="scroll-row">
