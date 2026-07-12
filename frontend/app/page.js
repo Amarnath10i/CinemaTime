@@ -3,7 +3,7 @@ import { useState, useEffect, Suspense, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { MovieCard } from "../../components/MovieCard";
+import { MovieCard } from "../components/MovieCard";
 
 /* ── Hero Carousel ─────────────────────────────── */
 function HeroCarousel({ items }) {
