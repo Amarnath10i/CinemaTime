@@ -1,0 +1,622 @@
+[
+  {
+    "id": 0,
+    "name": "\ud83d\ude80 Animation & Action (Action)",
+    "description": "Vibes: action, fantasy, adventure, animation, drama",
+    "top_genres": [
+      "Animation",
+      "Action",
+      "Drama"
+    ],
+    "size": 1116,
+    "samples": [
+      {
+        "id": "tmdb_1368337",
+        "title": "The Odyssey",
+        "poster": "https://image.tmdb.org/t/p/w500/5rhTDKUhPYvpdQIijFIs5VoWsON.jpg",
+        "media_type": "movie"
+      },
+      {
+        "id": "tmdb_1081003",
+        "title": "Supergirl",
+        "poster": "https://image.tmdb.org/t/p/w500/xhei2GX9L2H1eQlrHeFw44VNLd1.jpg",
+        "media_type": "movie"
+      },
+      {
+        "id": "tmdb_83533",
+        "title": "Avatar: Fire and Ash",
+        "poster": "https://image.tmdb.org/t/p/w500/bRBeSHfGHwkEpImlhxPmOcUsaeg.jpg",
+        "media_type": "movie"
+      }
+    ]
+  },
+  {
+    "id": 1,
+    "name": "\ud83d\udc7b Drama & Crime (Crime)",
+    "description": "Vibes: crime, drama, mystery, detective, murder",
+    "top_genres": [
+      "Drama",
+      "Crime",
+      "Mystery"
+    ],
+    "size": 1120,
+    "samples": [
+      {
+        "id": "tmdb_1301421",
+        "title": "The Sheep Detectives",
+        "poster": "https://image.tmdb.org/t/p/w500/mGWOmj2jHFol3kOGNv1EhbSDDE1.jpg",
+        "media_type": "movie"
+      },
+      {
+        "id": "tmdb_37257",
+        "title": "Witness for the Prosecution",
+        "poster": "https://image.tmdb.org/t/p/w500/bCj4EfuehAlgBwVd3diyWyhuuau.jpg",
+        "media_type": "movie"
+      },
+      {
+        "id": "tmdb_829280",
+        "title": "Enola Holmes 2",
+        "poster": "https://image.tmdb.org/t/p/w500/tegBpjM5ODoYoM1NjaiHVLEA0QM.jpg",
+        "media_type": "movie"
+      }
+    ]
+  },
+  {
+    "id": 2,
+    "name": "\ud83e\udd23 Horror & Thriller (Horror)",
+    "description": "Vibes: horror, thriller, mystery, drama, fantasy",
+    "top_genres": [
+      "Horror",
+      "Thriller",
+      "Drama"
+    ],
+    "size": 1369,
+    "samples": [
+      {
+        "id": "tmdb_1339713",
+        "title": "Obsession",
+        "poster": "https://image.tmdb.org/t/p/w500/bRwnj8WEKBCvmfeUNOukJPwB43K.jpg",
+        "media_type": "movie"
+      },
+      {
+        "id": "tmdb_1273221",
+        "title": "Scary Movie",
+        "poster": "https://image.tmdb.org/t/p/w500/1KlYdWoOrbL5ux357rW9LC155qw.jpg",
+        "media_type": "movie"
+      },
+      {
+        "id": "tmdb_1083381",
+        "title": "Backrooms",
+        "poster": "https://image.tmdb.org/t/p/w500/rhGx6E3qRNMgj3i5su2oukNHwIQ.jpg",
+        "media_type": "movie"
+      }
+    ]
+  },
+  {
+    "id": 3,
+    "name": "\ud83d\udc94 Drama & War (Drama)",
+    "description": "Vibes: drama, history, action, world, thriller",
+    "top_genres": [
+      "Drama",
+      "War",
+      "Action"
+    ],
+    "size": 715,
+    "samples": [
+      {
+        "id": "tmdb_1380291",
+        "title": "Tom Clancy's Jack Ryan: Ghost War",
+        "poster": "https://image.tmdb.org/t/p/w500/8ehYxUh5MWE41AeE9gkHE8DKzvB.jpg",
+        "media_type": "movie"
+      },
+      {
+        "id": "tmdb_1656220",
+        "title": "23 000 Lives",
+        "poster": "https://image.tmdb.org/t/p/w500/cNYTQKXvlSI62WacK35SfL22xs2.jpg",
+        "media_type": "movie"
+      },
+      {
+        "id": "tmdb_1265609",
+        "title": "War Machine",
+        "poster": "https://image.tmdb.org/t/p/w500/rFhKkXhk7ClU03jQ5rHIApJDwev.jpg",
+        "media_type": "movie"
+      }
+    ]
+  },
+  {
+    "id": 4,
+    "name": "\ud83e\uddd9 Adventure & Action (Adventure)",
+    "description": "Vibes: adventure, nature, action, hunting, these",
+    "top_genres": [
+      "Adventure",
+      "Action",
+      "Nature"
+    ],
+    "size": 682,
+    "samples": [
+      {
+        "id": "tmdb_1249508",
+        "title": "Grizzly Night",
+        "poster": "https://image.tmdb.org/t/p/w500/3ppOwa6PEtGsIiDPdZHUbEqgIY7.jpg",
+        "media_type": "movie"
+      },
+      {
+        "id": "tmdb_57201",
+        "title": "The Lone Ranger",
+        "poster": "https://image.tmdb.org/t/p/w500/yDuJGq8biNMW7zM3w95UaDJv0KG.jpg",
+        "media_type": "movie"
+      },
+      {
+        "id": "tmdb_218836",
+        "title": "Planes: Fire & Rescue",
+        "poster": "https://image.tmdb.org/t/p/w500/pOmteFeBDI9FJOPTDvYJYFeAtdp.jpg",
+        "media_type": "movie"
+      }
+    ]
+  },
+  {
+    "id": 5,
+    "name": "\ud83d\udd2b Drama & History (Drama)",
+    "description": "Vibes: drama, history, documentary, world, story",
+    "top_genres": [
+      "Drama",
+      "History",
+      "Mystery"
+    ],
+    "size": 1055,
+    "samples": [
+      {
+        "id": "tmdb_446354",
+        "title": "The Post",
+        "poster": "https://image.tmdb.org/t/p/w500/h4XG3g6uMMPIBPjAoQhC2QIMdkl.jpg",
+        "media_type": "movie"
+      },
+      {
+        "id": "tmdb_6479",
+        "title": "I Am Legend",
+        "poster": "https://image.tmdb.org/t/p/w500/iPDkaSdKk2jRLTM65UOEoKtsIZ8.jpg",
+        "media_type": "movie"
+      },
+      {
+        "id": "tmdb_316029",
+        "title": "The Greatest Showman",
+        "poster": "https://image.tmdb.org/t/p/w500/b9CeobiihCx1uG1tpw8hXmpi7nm.jpg",
+        "media_type": "movie"
+      }
+    ]
+  },
+  {
+    "id": 6,
+    "name": "\ud83d\udd75\ufe0f Drama & Crime (Drama)",
+    "description": "Vibes: drama, crime, action, police, comedy",
+    "top_genres": [
+      "Drama",
+      "Crime",
+      "Action"
+    ],
+    "size": 1093,
+    "samples": [
+      {
+        "id": "tmdb_384018",
+        "title": "Fast & Furious Presents: Hobbs & Shaw",
+        "poster": "https://image.tmdb.org/t/p/w500/qRyy2UmjC5ur9bDi3kpNNRCc5nc.jpg",
+        "media_type": "movie"
+      },
+      {
+        "id": "tmdb_39514",
+        "title": "RED",
+        "poster": "https://image.tmdb.org/t/p/w500/8eeK3OB5PeSRQD7BpZcGZKkehG.jpg",
+        "media_type": "movie"
+      },
+      {
+        "id": "tmdb_2109",
+        "title": "Rush Hour",
+        "poster": "https://image.tmdb.org/t/p/w500/nwPhAsfnb7f46bZkWLG7IRP5HXr.jpg",
+        "media_type": "movie"
+      }
+    ]
+  },
+  {
+    "id": 7,
+    "name": "\ud83c\udfb8 Family & Adventure (Family)",
+    "description": "Vibes: family, adventure, comedy, animation, fantasy",
+    "top_genres": [
+      "Family",
+      "Adventure",
+      "Comedy"
+    ],
+    "size": 1025,
+    "samples": [
+      {
+        "id": "tmdb_1108427",
+        "title": "Moana",
+        "poster": "https://image.tmdb.org/t/p/w500/zKVgiv5qHCvCLT4A2ymJi5QeXDH.jpg",
+        "media_type": "movie"
+      },
+      {
+        "id": "tmdb_1315772",
+        "title": "Minions & Monsters",
+        "poster": "https://image.tmdb.org/t/p/w500/nz7i42yhLIJ4ve9JKgM6NthoLHO.jpg",
+        "media_type": "movie"
+      },
+      {
+        "id": "tmdb_1084244",
+        "title": "Toy Story 5",
+        "poster": "https://image.tmdb.org/t/p/w500/sfQtVlIHljToOwYjhe21KPGzZWK.jpg",
+        "media_type": "movie"
+      }
+    ]
+  },
+  {
+    "id": 8,
+    "name": "\ud83e\udd4a Thriller & Crime (Crime)",
+    "description": "Vibes: crime, thriller, action, drama, comedy",
+    "top_genres": [
+      "Thriller",
+      "Crime",
+      "Action"
+    ],
+    "size": 1557,
+    "samples": [
+      {
+        "id": "tmdb_1280738",
+        "title": "The Furious",
+        "poster": "https://image.tmdb.org/t/p/w500/zP19YO60jwEsfKd5Qf1UvA5uJu8.jpg",
+        "media_type": "movie"
+      },
+      {
+        "id": "tmdb_1413976",
+        "title": "Citizen Vigilante",
+        "poster": "https://image.tmdb.org/t/p/w500/6LmJD3Wohe0g4U62wgi7RyJqfE4.jpg",
+        "media_type": "movie"
+      },
+      {
+        "id": "tmdb_1279493",
+        "title": "The Get Out",
+        "poster": "https://image.tmdb.org/t/p/w500/zlkeH0s7dDxcnuPcHBqAyXFUxqN.jpg",
+        "media_type": "movie"
+      }
+    ]
+  },
+  {
+    "id": 9,
+    "name": "\ud83d\udc7d Action & Science Fiction (Action)",
+    "description": "Vibes: action, adventure, sciencefiction, drama, science-fiction",
+    "top_genres": [
+      "Action",
+      "Science Fiction",
+      "Adventure"
+    ],
+    "size": 1085,
+    "samples": [
+      {
+        "id": "tmdb_1275779",
+        "title": "Disclosure Day",
+        "poster": "https://image.tmdb.org/t/p/w500/AnJ8IQJI23hNpYXVNaythu061Ru.jpg",
+        "media_type": "movie"
+      },
+      {
+        "id": "tmdb_687163",
+        "title": "Project Hail Mary",
+        "poster": "https://image.tmdb.org/t/p/w500/yihdXomYb5kTeSivtFndMy5iDmf.jpg",
+        "media_type": "movie"
+      },
+      {
+        "id": "tmdb_157336",
+        "title": "Interstellar",
+        "poster": "https://image.tmdb.org/t/p/w500/yQvGrMoipbRoddT0ZR8tPoR7NfX.jpg",
+        "media_type": "movie"
+      }
+    ]
+  },
+  {
+    "id": 10,
+    "name": "\ud83e\udd84 Sports & Music (Music)",
+    "description": "Vibes: music, sports, television, american, program",
+    "top_genres": [
+      "Sports",
+      "Music",
+      "Drama"
+    ],
+    "size": 1171,
+    "samples": [
+      {
+        "id": "tmdb_37799",
+        "title": "The Social Network",
+        "poster": "https://image.tmdb.org/t/p/w500/n0ybibhJtQ5icDqTp8eRytcIHJx.jpg",
+        "media_type": "movie"
+      },
+      {
+        "id": "tmdb_1628123",
+        "title": "BTS THE COMEBACK LIVE | ARIRANG",
+        "poster": "https://image.tmdb.org/t/p/w500/tztql23n2UCoM76KyCSKoZxVUL1.jpg",
+        "media_type": "movie"
+      },
+      {
+        "id": "tmdb_1641962",
+        "title": "Untold: Chess Mates",
+        "poster": "https://image.tmdb.org/t/p/w500/oC68KgbyFiraKJRdUedQI9aXBF.jpg",
+        "media_type": "movie"
+      }
+    ]
+  },
+  {
+    "id": 11,
+    "name": "\ud83c\udf0b Comedy & Animation (Comedy)",
+    "description": "Vibes: comedy, children, animation, family, adventure",
+    "top_genres": [
+      "Comedy",
+      "Animation",
+      "Children"
+    ],
+    "size": 865,
+    "samples": [
+      {
+        "id": "tmdb_939243",
+        "title": "Sonic the Hedgehog 3",
+        "poster": "https://image.tmdb.org/t/p/w500/d8Ryb8AunYAuycVKDp5HpdWPKgC.jpg",
+        "media_type": "movie"
+      },
+      {
+        "id": "tmdb_454626",
+        "title": "Sonic the Hedgehog",
+        "poster": "https://image.tmdb.org/t/p/w500/aQvJ5WPzZgYVDrxLX4R6cLJCEaQ.jpg",
+        "media_type": "movie"
+      },
+      {
+        "id": "tmdb_404368",
+        "title": "Ralph Breaks the Internet",
+        "poster": "https://image.tmdb.org/t/p/w500/iVCrhBcpDaHGvv7CLYbK6PuXZo1.jpg",
+        "media_type": "movie"
+      }
+    ]
+  },
+  {
+    "id": 12,
+    "name": "\ud83c\udff0 Drama & Comedy (Drama)",
+    "description": "Vibes: drama, comedy, romance, lives, women",
+    "top_genres": [
+      "Drama",
+      "Comedy",
+      "Romance"
+    ],
+    "size": 1308,
+    "samples": [
+      {
+        "id": "tmdb_11852",
+        "title": "The Hot Chick",
+        "poster": "https://image.tmdb.org/t/p/w500/lnnGE4TKa05t20SZ2batuAhXCp4.jpg",
+        "media_type": "movie"
+      },
+      {
+        "id": "tmdb_10625",
+        "title": "Mean Girls",
+        "poster": "https://image.tmdb.org/t/p/w500/2ZkuQXvVhh45uSvkBej4S7Ix1NJ.jpg",
+        "media_type": "movie"
+      },
+      {
+        "id": "tmdb_843527",
+        "title": "The Idea of You",
+        "poster": "https://image.tmdb.org/t/p/w500/Y5P4Q3q8nrruZ9aD3wXeJS2Plg.jpg",
+        "media_type": "movie"
+      }
+    ]
+  },
+  {
+    "id": 13,
+    "name": "\ud83e\udd16 Animation & Comedy (Animation)",
+    "description": "Vibes: animation, comedy, drama, school, action",
+    "top_genres": [
+      "Animation",
+      "Comedy",
+      "Anime"
+    ],
+    "size": 1354,
+    "samples": [
+      {
+        "id": "tmdb_405871",
+        "title": "On the Beach",
+        "poster": "https://image.tmdb.org/t/p/w500/ksl1d50FUHaqNuNnmHSNdPrYyYl.jpg",
+        "media_type": "movie"
+      },
+      {
+        "id": "tmdb_1539104",
+        "title": "JUJUTSU KAISEN: Execution",
+        "poster": "https://image.tmdb.org/t/p/w500/v0s3dx6am0RzfsuK3KdEy8ZoCDs.jpg",
+        "media_type": "movie"
+      },
+      {
+        "id": "tmdb_128",
+        "title": "Princess Mononoke",
+        "poster": "https://image.tmdb.org/t/p/w500/cMYCDADoLKLbB83g4WnJegaZimC.jpg",
+        "media_type": "movie"
+      }
+    ]
+  },
+  {
+    "id": 14,
+    "name": "\ud83c\udfa8 Food & Travel (Chefs)",
+    "description": "Vibes: chefs, culinary, cooking, restaurant, kitchen",
+    "top_genres": [
+      "Food",
+      "Travel",
+      "Comedy"
+    ],
+    "size": 330,
+    "samples": [
+      {
+        "id": "tmdb_593643",
+        "title": "The Menu",
+        "poster": "https://image.tmdb.org/t/p/w500/fPtUgMcLIboqlTlPrq0bQpKK8eq.jpg",
+        "media_type": "movie"
+      },
+      {
+        "id": "tmdb_1392117",
+        "title": "Cooked",
+        "poster": "https://image.tmdb.org/t/p/w500/bjHGT2f65Tim3YFJJci766FOgzH.jpg",
+        "media_type": "movie"
+      },
+      {
+        "id": "tmdb_1587",
+        "title": "What's Eating Gilbert Grape",
+        "poster": "https://image.tmdb.org/t/p/w500/8FxWgsfDNosewo7H65oE4QkOb7g.jpg",
+        "media_type": "movie"
+      }
+    ]
+  },
+  {
+    "id": 15,
+    "name": "\ud83c\udfad Comedy & Drama (Family)",
+    "description": "Vibes: family, comedy, drama, lives, while",
+    "top_genres": [
+      "Comedy",
+      "Drama",
+      "Family"
+    ],
+    "size": 1091,
+    "samples": [
+      {
+        "id": "tmdb_1318621",
+        "title": "Descendants: Wicked Wonderland",
+        "poster": "https://image.tmdb.org/t/p/w500/xdhLAADGSse8KCrsDLBuM5b68Cg.jpg",
+        "media_type": "movie"
+      },
+      {
+        "id": "tmdb_1010581",
+        "title": "My Fault",
+        "poster": "https://image.tmdb.org/t/p/w500/w46Vw536HwNnEzOa7J24YH9DPRS.jpg",
+        "media_type": "movie"
+      },
+      {
+        "id": "tmdb_1168190",
+        "title": "The Wrecking Crew",
+        "poster": "https://image.tmdb.org/t/p/w500/gbVwHl4YPSq6BcC92TQpe7qUTh6.jpg",
+        "media_type": "movie"
+      }
+    ]
+  },
+  {
+    "id": 16,
+    "name": "\ud83c\udfaa Drama & Comedy (Drama)",
+    "description": "Vibes: drama, comedy, family, young, crime",
+    "top_genres": [
+      "Drama",
+      "Comedy",
+      "Crime"
+    ],
+    "size": 776,
+    "samples": [
+      {
+        "id": "tmdb_1314481",
+        "title": "The Devil Wears Prada 2",
+        "poster": "https://image.tmdb.org/t/p/w500/fCAURTUx3YfsJ8k9I0UamjSILiR.jpg",
+        "media_type": "movie"
+      },
+      {
+        "id": "tmdb_5721",
+        "title": "Vixen!",
+        "poster": "https://image.tmdb.org/t/p/w500/9KMZWDA3xTrlgrScqdMisINQmsh.jpg",
+        "media_type": "movie"
+      },
+      {
+        "id": "tmdb_519182",
+        "title": "Despicable Me 4",
+        "poster": "https://image.tmdb.org/t/p/w500/wWba3TaojhK7NdycRhoQpsG0FaH.jpg",
+        "media_type": "movie"
+      }
+    ]
+  },
+  {
+    "id": 17,
+    "name": "\ud83c\udfdd\ufe0f Drama & Comedy (Drama)",
+    "description": "Vibes: drama, comedy, music, family, action",
+    "top_genres": [
+      "Drama",
+      "Comedy",
+      "Action"
+    ],
+    "size": 1206,
+    "samples": [
+      {
+        "id": "tmdb_936075",
+        "title": "Michael",
+        "poster": "https://image.tmdb.org/t/p/w500/zm0KAbOjlt9eR5y7vDiL2dEOwMl.jpg",
+        "media_type": "movie"
+      },
+      {
+        "id": "tmdb_1725116",
+        "title": "Simpsley",
+        "poster": "https://image.tmdb.org/t/p/w500/qkJefER6Ym4v2KC1v4qK34AlcVo.jpg",
+        "media_type": "movie"
+      },
+      {
+        "id": "tmdb_1541560",
+        "title": "Stop! That! Train!",
+        "poster": "https://image.tmdb.org/t/p/w500/w90dGS6D2lVO4aO5rdQ8QECrUGY.jpg",
+        "media_type": "movie"
+      }
+    ]
+  },
+  {
+    "id": 18,
+    "name": "\u26e9\ufe0f Drama & Romance (Drama)",
+    "description": "Vibes: drama, romance, comedy, young, family",
+    "top_genres": [
+      "Drama",
+      "Romance",
+      "Comedy"
+    ],
+    "size": 1733,
+    "samples": [
+      {
+        "id": "tmdb_1668364",
+        "title": "Desire",
+        "poster": "https://image.tmdb.org/t/p/w500/3bEqHqeaQlFykaLQ7N4gDkIvL5w.jpg",
+        "media_type": "movie"
+      },
+      {
+        "id": "tmdb_1523145",
+        "title": "Your Heart Will Be Broken",
+        "poster": "https://image.tmdb.org/t/p/w500/7wIBfBl2gejt6xHxNSK0reVIm7E.jpg",
+        "media_type": "movie"
+      },
+      {
+        "id": "tmdb_11012",
+        "title": "Damage",
+        "poster": "https://image.tmdb.org/t/p/w500/alf3JOPP7EYP0iO24gwe5YfRnqo.jpg",
+        "media_type": "movie"
+      }
+    ]
+  },
+  {
+    "id": 19,
+    "name": "\ud83d\udef8 Comedy & Drama (Comedy)",
+    "description": "Vibes: comedy, drama, television, family, celebrity",
+    "top_genres": [
+      "Comedy",
+      "Drama",
+      "Family"
+    ],
+    "size": 1294,
+    "samples": [
+      {
+        "id": "tmdb_228967",
+        "title": "The Interview",
+        "poster": "https://image.tmdb.org/t/p/w500/tIDC4xT65l7a8qbgg8GvwD5g8c5.jpg",
+        "media_type": "movie"
+      },
+      {
+        "id": "tmdb_87584",
+        "title": "Celebrity Sex Tape",
+        "poster": "https://image.tmdb.org/t/p/w500/3FWSUD1yIvGPmLIXgyOS72MrTrC.jpg",
+        "media_type": "movie"
+      },
+      {
+        "id": "tmdb_1658982",
+        "title": "The Roast of Kevin Hart",
+        "poster": "https://image.tmdb.org/t/p/w500/wRPgZUWMZ8fFszfduEPdKa4Mmwm.jpg",
+        "media_type": "movie"
+      }
+    ]
+  }
+]

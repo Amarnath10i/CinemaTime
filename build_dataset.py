@@ -120,16 +120,20 @@ if existing_df is None and os.path.exists(pkl_path):
     except Exception:
         existing_df = None
 
-# ── Step 2: TMDB Fetcher (Movies) ────────────────────────────────
-print("\n[2/6] Fetching movies from TMDB...")
+# ── Step 2: TMDB Fetcher (Movies + TV) ────────────────────────────
+print("\n[2/6] Fetching movies & TV from TMDB...")
 movie_genres_data = api_get(f"{BASE}/genre/movie/list?api_key={API_KEY}&language=en-US")
 movie_genre_map = {g["id"]: g["name"] for g in movie_genres_data.get("genres", [])}
+tv_genres_data = api_get(f"{BASE}/genre/tv/list?api_key={API_KEY}&language=en-US")
+tv_genre_map = {g["id"]: g["name"] for g in tv_genres_data.get("genres", [])}
 
-def fetch_tmdb_movies(pages, genre_map):
+def fetch_tmdb_discover(endpoint, pages, genre_map, media_type, sort_by="popularity.desc", vote_count=20):
+    """Generic TMDB discover fetcher."""
     items = []
+    seen_ids = set()
     consecutive_failures = 0
     for page in range(1, pages + 1):
-        url = f"{BASE}/discover/movie?api_key={API_KEY}&language=en-US&sort_by=popularity.desc&page={page}&vote_count.gte=50"
+        url = f"{BASE}/discover/{endpoint}?api_key={API_KEY}&language=en-US&sort_by={sort_by}&page={page}&vote_count.gte={vote_count}"
         data = api_get(url)
         results = data.get("results", [])
         if not results:
@@ -138,24 +142,53 @@ def fetch_tmdb_movies(pages, genre_map):
             continue
         consecutive_failures = 0
         for r in results:
+            rid = r["id"]
+            if rid in seen_ids:
+                continue
+            seen_ids.add(rid)
             genres = [genre_map.get(gid, "") for gid in r.get("genre_ids", [])]
+            title = r.get("title", r.get("name", "Unknown"))
             items.append({
-                "id": f"tmdb_{r['id']}",
-                "title": r.get("title", "Unknown"),
+                "id": f"tmdb_{rid}",
+                "title": title,
                 "overview": r.get("overview", ""),
                 "genres": [g for g in genres if g],
                 "vote_average": r.get("vote_average", 0),
-                "poster_path": f"{r.get('poster_path', '')}",
-                "backdrop_path": f"{r.get('backdrop_path', '')}",
-                "release_date": r.get("release_date", ""),
-                "media_type": "movie",
+                "poster_path": r.get("poster_path", "") or "",
+                "backdrop_path": r.get("backdrop_path", "") or "",
+                "release_date": r.get("release_date", r.get("first_air_date", "")),
+                "media_type": media_type,
             })
-        if page % 10 == 0:
-            print(f"      TMDB Page {page}/{pages} - {len(items)} movies collected")
+        if page % 25 == 0:
+            print(f"      {endpoint} [{sort_by[:12]}] Page {page}/{pages} - {len(items)} items")
     return items
 
-movie_items = fetch_tmdb_movies(250, movie_genre_map)
-print(f"    Collected {len(movie_items)} movies from TMDB")
+# Fetch movies using multiple strategies to maximize unique content
+# TMDB caps discover at 500 pages, but popular movies thin out after ~300
+movie_items = []
+seen_movie_ids = set()
+
+strategies = [
+    ("popularity.desc", 300, 20),                          # Most popular
+    ("vote_average.desc", 100, 500),                       # Top rated (override base threshold)
+    ("revenue.desc", 100, 20),                             # Highest grossing
+    ("primary_release_date.desc", 100, 20),                # Newest
+]
+
+for sort_by, pages, vote_count in strategies:
+    print(f"    Strategy: {sort_by} ({pages} pages)...")
+    batch = fetch_tmdb_discover("movie", pages, movie_genre_map, "movie", sort_by, vote_count)
+    for item in batch:
+        if item["id"] not in seen_movie_ids:
+            seen_movie_ids.add(item["id"])
+            movie_items.append(item)
+
+print(f"    ✅ Collected {len(movie_items)} unique movies from TMDB")
+
+# Also fetch TV shows from TMDB (better metadata than TVmaze for popular shows)
+print("    Fetching TV shows from TMDB...")
+tmdb_tv_items = fetch_tmdb_discover("tv", 150, tv_genre_map, "tv", "popularity.desc")
+print(f"    ✅ Collected {len(tmdb_tv_items)} TV shows from TMDB")
 
 # ── Step 3: TVmaze Fetcher (TV Shows) ────────────────────────────
 print("\n[3/6] Fetching TV Shows from TVmaze...")
@@ -174,10 +207,10 @@ def fetch_tvmaze_shows(pages):
                 "title": r.get("name", "Unknown"),
                 "overview": clean_summary,
                 "genres": r.get("genres", []),
-                "vote_average": r.get("rating", {}).get("average", 0) or 0,
-                "poster_path": r.get("image", {}).get("original", ""),
-                "backdrop_path": r.get("image", {}).get("original", ""),
-                "release_date": r.get("premiered", ""),
+                "vote_average": (r.get("rating") or {}).get("average", 0) or 0,
+                "poster_path": (r.get("image") or {}).get("original", ""),
+                "backdrop_path": (r.get("image") or {}).get("original", ""),
+                "release_date": r.get("premiered", "") or "",
                 "media_type": "tv",
             })
         if page % 5 == 0:
@@ -228,7 +261,7 @@ print(f"    Collected {len(anime_items)} Anime from Jikan")
 
 # ── Step 5: Merge everything ──────────────────────────────────
 print("\n[5/6] Merging all data sources...")
-all_items = movie_items + tv_items + anime_items
+all_items = movie_items + tmdb_tv_items + tv_items + anime_items
 api_df = pd.DataFrame(all_items) if all_items else pd.DataFrame()
 
 if existing_df is not None and len(existing_df) > 0:
