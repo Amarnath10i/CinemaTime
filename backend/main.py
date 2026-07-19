@@ -10,15 +10,34 @@ import os
 import pandas as pd
 from pydantic import BaseModel
 
-# Disable SSL warnings (needed when VPN causes cert issues)
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+# ── Configuration from environment ─────────────────────────
+TMDB_API_KEY = os.getenv("TMDB_API_KEY")
+if not TMDB_API_KEY:
+    raise RuntimeError(
+        "TMDB_API_KEY environment variable is not set. "
+        "Get one at https://www.themoviedb.org/settings/api "
+        "and set it in your .env or deployment config."
+    )
+
+DISABLE_SSL_VERIFY = os.getenv("DISABLE_SSL_VERIFY", "").lower() == "true"
+SSL_VERIFY = not DISABLE_SSL_VERIFY
+
+if DISABLE_SSL_VERIFY:
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+_default_origins = "https://cinema-time-black.vercel.app,http://localhost:3000"
+CORS_ORIGINS = [
+    o.strip()
+    for o in os.getenv("CORS_ORIGINS", _default_origins).split(",")
+    if o.strip()
+]
 
 app = FastAPI(title="CinemaTime API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -39,7 +58,15 @@ except Exception as e:
     index = None
     DATA_LOADED = False
 
-TMDB_API_KEY = "10e0997eacd8c14e60ef40b8a46f695b"
+try:
+    import json
+    with open(os.path.join(BASE_DIR, "clusters.json"), "r") as f:
+        CLUSTERS = json.load(f)
+    print(f"✅ Loaded {len(CLUSTERS)} vibe clusters.")
+except Exception:
+    CLUSTERS = []
+    print("⚠️ No clusters.json found. Run build_dataset.py to generate vibes.")
+
 TMDB_BASE = "https://api.themoviedb.org/3"
 POSTER_BASE = "https://image.tmdb.org/t/p/w500"
 PLACEHOLDER = "https://via.placeholder.com/500x750?text=No+Poster"
@@ -64,7 +91,7 @@ def tmdb_fetch(tmdb_id, media_type="movie"):
     mt = "movie" if media_type in ("movie", "") else "tv"
     try:
         url = f"{TMDB_BASE}/{mt}/{tmdb_id}?api_key={TMDB_API_KEY}&language=en-US&append_to_response=videos,credits"
-        return requests.get(url, timeout=10, verify=False).json()
+        return requests.get(url, timeout=10, verify=SSL_VERIFY).json()
     except Exception:
         return {}
 
@@ -225,7 +252,7 @@ def movie_detail(tmdb_id: int):
 
 
 @app.get("/api/recommend/{tmdb_id}")
-def recommend(tmdb_id: int, n: int = 10):
+def recommend(tmdb_id: int, n: int = 10, diversity: float = 0.5):
     match = movies[movies["id"] == tmdb_id]
     if match.empty:
         # If movie isn't in local DB, we can't do FAISS search
@@ -234,15 +261,87 @@ def recommend(tmdb_id: int, n: int = 10):
     movie_idx = match.index[0]
     query_vector = index.reconstruct(int(movie_idx))
     query_vector = np.array([query_vector])
-    distances, indices = index.search(query_vector, n + 1)
-    results = []
-    for i in indices[0]:
-        if i == movie_idx:
+    
+    # 1. Over-retrieve candidates
+    fetch_n = min(n * 3 + 1, index.ntotal)
+    distances, indices = index.search(query_vector, fetch_n)
+    
+    candidates = []
+    for dist, idx in zip(distances[0], indices[0]):
+        if idx == movie_idx:
             continue
-        row = movies.iloc[i]
-        results.append(row_to_dict(row))
-        if len(results) >= n:
-            break
+        candidates.append((dist, idx))
+        
+    if not candidates:
+        return []
+        
+    # 2. MMR Re-ranking
+    selected_indices = []
+    selected_vectors = []
+    
+    # Pre-fetch vectors for candidates to compute similarity efficiently
+    candidate_vectors = {idx: index.reconstruct(int(idx)) for _, idx in candidates}
+    
+    while len(selected_indices) < n and candidates:
+        best_score = -float('inf')
+        best_candidate_pos = -1
+        
+        for pos, (sim_to_query, idx) in enumerate(candidates):
+            if not selected_vectors:
+                mmr_score = sim_to_query
+            else:
+                v_c = candidate_vectors[idx]
+                sims_to_selected = [np.dot(v_c, v_s) for v_s in selected_vectors]
+                max_sim_to_selected = max(sims_to_selected)
+                mmr_score = (1.0 - diversity) * sim_to_query - diversity * max_sim_to_selected
+                
+            if mmr_score > best_score:
+                best_score = mmr_score
+                best_candidate_pos = pos
+                
+        # Move best candidate to selected
+        sim_to_query, best_idx = candidates.pop(best_candidate_pos)
+        selected_indices.append((best_idx, sim_to_query))
+        selected_vectors.append(candidate_vectors[best_idx])
+        
+    # 3. Explanations & Formatting
+    results = []
+    source_row = movies.iloc[movie_idx]
+    source_genres = set(g.strip() for g in source_row.get("genres_display", "").split(",") if g.strip())
+    
+    # Simple thematic overlap using tags (ignoring common short words)
+    stop_words = {"this", "that", "with", "from", "movie", "film", "series", "about", "their", "there", "which", "anime", "when", "into", "after"}
+    source_tags = set(w for w in source_row.get("tags", "").split() if len(w) > 4 and w not in stop_words)
+    
+    for idx, sim in selected_indices:
+        row = movies.iloc[idx]
+        rec_dict = row_to_dict(row)
+        rec_dict["similarity_score"] = float(sim)
+        
+        # Explanations
+        rec_genres = set(g.strip() for g in row.get("genres_display", "").split(",") if g.strip())
+        shared_genres = list(source_genres.intersection(rec_genres))
+        
+        rec_tags = set(w for w in row.get("tags", "").split() if len(w) > 4 and w not in stop_words)
+        shared_themes = list(source_tags.intersection(rec_tags))
+        
+        match_pct = min(100, max(0, int(sim * 100)))
+        reason_parts = [f"{match_pct}% match"]
+        
+        if shared_themes:
+            reason_parts.append(f"themes: {', '.join(shared_themes[:3])}")
+        elif shared_genres:
+            reason_parts.append(f"genres: {', '.join(shared_genres[:2])}")
+            
+        rec_dict["explanation"] = {
+            "match_pct": match_pct,
+            "shared_genres": shared_genres,
+            "shared_themes": shared_themes,
+            "reason": " — ".join(reason_parts)
+        }
+        
+        results.append(rec_dict)
+        
     return results
 
 
@@ -250,7 +349,7 @@ def recommend(tmdb_id: int, n: int = 10):
 def cast_movies(person_id: int):
     try:
         url = f"{TMDB_BASE}/person/{person_id}/combined_credits?api_key={TMDB_API_KEY}&language=en-US"
-        data = requests.get(url, timeout=10, verify=False).json()
+        data = requests.get(url, timeout=10, verify=SSL_VERIFY).json()
         cast_list = data.get("cast", [])
         cast_list.sort(key=lambda x: x.get("popularity", 0), reverse=True)
         results = []
@@ -266,7 +365,7 @@ def cast_movies(person_id: int):
                 "media_type": m.get("media_type", "movie"),
             })
         person_url = f"{TMDB_BASE}/person/{person_id}?api_key={TMDB_API_KEY}&language=en-US"
-        person_data = requests.get(person_url, timeout=10, verify=False).json()
+        person_data = requests.get(person_url, timeout=10, verify=SSL_VERIFY).json()
         person_info = {
             "name": person_data.get("name", ""),
             "biography": person_data.get("biography", ""),
@@ -305,7 +404,7 @@ def assistant_chat(req: ChatRequest):
         # 2. If it looks like a person query, hit TMDB Person Search
         if name_to_search:
             person_url = f"{TMDB_BASE}/search/person?api_key={TMDB_API_KEY}&query={name_to_search}&language=en-US"
-            person_data = requests.get(person_url, timeout=10, verify=False).json()
+            person_data = requests.get(person_url, timeout=10, verify=SSL_VERIFY).json()
             
             if person_data.get("results"):
                 person = person_data["results"][0]
@@ -313,7 +412,7 @@ def assistant_chat(req: ChatRequest):
                 person_name = person["name"]
                 
                 discover_url = f"{TMDB_BASE}/discover/movie?api_key={TMDB_API_KEY}&with_people={person_id}&sort_by=popularity.desc&language=en-US"
-                discover_data = requests.get(discover_url, timeout=10, verify=False).json()
+                discover_data = requests.get(discover_url, timeout=10, verify=SSL_VERIFY).json()
                 
                 results = []
                 for r in discover_data.get("results", [])[:15]:
@@ -343,9 +442,15 @@ def assistant_chat(req: ChatRequest):
                 local_results = [row_to_dict(r) for _, r in subset.iterrows()]
                 return {"reply": f"Here is what I found for '{clean_msg.title()}':", "movies": local_results}
 
-        # 4. Fallback: Search TMDB Multi-Search directly
+        # 4. Fallback: If it's a long descriptive query, use semantic search
+        if len(clean_msg.split()) >= 3 or len(clean_msg) > 15:
+            semantic_results = search_vibe(clean_msg, n=15)
+            if semantic_results and not isinstance(semantic_results, dict) and len(semantic_results) > 0:
+                return {"reply": "Here are some titles that match that vibe:", "movies": semantic_results}
+
+        # 5. Last resort: Search TMDB Multi-Search directly
         search_url = f"{TMDB_BASE}/search/multi?api_key={TMDB_API_KEY}&query={clean_msg}&language=en-US"
-        search_data = requests.get(search_url, timeout=10, verify=False).json()
+        search_data = requests.get(search_url, timeout=10, verify=SSL_VERIFY).json()
         
         results = []
         for r in search_data.get("results", [])[:15]:
@@ -375,7 +480,7 @@ def trending():
         # Fetch 3 pages of trending (60 items) for a richer See All page
         for page in range(1, 4):
             url = f"{TMDB_BASE}/trending/all/week?api_key={TMDB_API_KEY}&language=en-US&page={page}"
-            data = requests.get(url, timeout=5, verify=False).json()
+            data = requests.get(url, timeout=5, verify=SSL_VERIFY).json()
             for r in data.get("results", []):
                 if r["id"] in seen_ids:
                     continue
@@ -401,3 +506,237 @@ def trending():
         for _, row in subset.iterrows():
             results.append(row_to_dict(row))
         return results
+
+
+@app.get("/api/vibes")
+def get_vibes():
+    return CLUSTERS
+
+@app.get("/api/vibes/{cluster_id}")
+def get_vibe_movies(cluster_id: int, n: int = 20):
+    if "cluster_id" not in movies.columns:
+        return []
+    
+    match = movies[movies["cluster_id"] == cluster_id]
+    
+    # Sort by rating or just take head for simplicity
+    if "vote_average" in match.columns:
+        match = match.sort_values(by="vote_average", ascending=False)
+        
+    subset = match.head(n)
+    results = []
+    for _, row in subset.iterrows():
+        results.append(row_to_dict(row))
+    return results
+
+
+_encoder_model = None
+def get_encoder():
+    global _encoder_model
+    if _encoder_model is None:
+        try:
+            from sentence_transformers import SentenceTransformer
+            _encoder_model = SentenceTransformer("all-MiniLM-L6-v2")
+        except ImportError:
+            pass
+    return _encoder_model
+
+@app.get("/api/search/vibe")
+def search_vibe(q: str, n: int = 15, diversity: float = 0.5):
+    if index is None or movies.empty:
+        return []
+    
+    encoder = get_encoder()
+    if not encoder:
+        return {"error": "Semantic search model not available. Install sentence-transformers."}
+        
+    query_vector = encoder.encode([q])
+    faiss.normalize_L2(query_vector)
+    
+    # 1. Over-retrieve candidates
+    fetch_n = min(n * 3 + 1, index.ntotal)
+    distances, indices = index.search(query_vector, fetch_n)
+    
+    candidates = []
+    for dist, idx in zip(distances[0], indices[0]):
+        candidates.append((dist, idx))
+        
+    if not candidates:
+        return []
+        
+    # 2. MMR Re-ranking
+    selected_indices = []
+    selected_vectors = []
+    candidate_vectors = {idx: index.reconstruct(int(idx)) for _, idx in candidates}
+    
+    while len(selected_indices) < n and candidates:
+        best_score = -float('inf')
+        best_candidate_pos = -1
+        
+        for pos, (sim_to_query, idx) in enumerate(candidates):
+            if not selected_vectors:
+                mmr_score = sim_to_query
+            else:
+                v_c = candidate_vectors[idx]
+                sims_to_selected = [np.dot(v_c, v_s) for v_s in selected_vectors]
+                max_sim_to_selected = max(sims_to_selected)
+                mmr_score = (1.0 - diversity) * sim_to_query - diversity * max_sim_to_selected
+                
+            if mmr_score > best_score:
+                best_score = mmr_score
+                best_candidate_pos = pos
+                
+        sim_to_query, best_idx = candidates.pop(best_candidate_pos)
+        selected_indices.append((best_idx, sim_to_query))
+        selected_vectors.append(candidate_vectors[best_idx])
+        
+    results = []
+    
+    stop_words = {"this", "that", "with", "from", "movie", "film", "series", "about", "their", "there", "which", "anime", "when", "into", "after"}
+    query_words = set(w.lower() for w in q.split() if len(w) > 3 and w.lower() not in stop_words)
+    
+    for idx, sim in selected_indices:
+        row = movies.iloc[idx]
+        rec_dict = row_to_dict(row)
+        rec_dict["similarity_score"] = float(sim)
+        
+        # Explain against query words
+        rec_tags = set(w.lower() for w in row.get("tags", "").split() if len(w) > 3 and w.lower() not in stop_words)
+        shared_themes = list(query_words.intersection(rec_tags))
+        
+        match_pct = min(100, max(0, int(sim * 100)))
+        reason_parts = [f"{match_pct}% match"]
+        
+        if shared_themes:
+            reason_parts.append(f"themes: {', '.join(shared_themes[:3])}")
+            
+        rec_dict["explanation"] = {
+            "match_pct": match_pct,
+            "shared_themes": shared_themes,
+            "reason": " — ".join(reason_parts)
+        }
+        
+        results.append(rec_dict)
+        
+    return results
+
+class GroupRequest(BaseModel):
+    users: list[list[int]]
+    n: int = 10
+    diversity: float = 0.5
+
+@app.post("/api/group-recommend")
+def group_recommend(req: GroupRequest):
+    if index is None or movies.empty:
+        return []
+        
+    if not req.users or all(not u for u in req.users):
+        return []
+        
+    centroids = []
+    user_valid_counts = []
+    
+    for user_movies in req.users:
+        user_vectors = []
+        for mid in user_movies:
+            match = movies[movies["id"] == mid]
+            if not match.empty:
+                idx = match.index[0]
+                user_vectors.append(index.reconstruct(int(idx)))
+                
+        if user_vectors:
+            centroid = np.mean(user_vectors, axis=0)
+            faiss.normalize_L2(np.array([centroid]))
+            centroids.append(centroid)
+            user_valid_counts.append(len(user_vectors))
+        else:
+            centroids.append(None)
+            user_valid_counts.append(0)
+            
+    valid_centroids = [c for c in centroids if c is not None]
+    if not valid_centroids:
+        return []
+        
+    # Over-retrieve from all centroids
+    fetch_n = min(req.n * 5 + 10, index.ntotal)
+    candidate_indices = set()
+    
+    for centroid in valid_centroids:
+        q_vec = np.array([centroid])
+        _, indices = index.search(q_vec, fetch_n)
+        for idx in indices[0]:
+            candidate_indices.add(idx)
+            
+    # Filter out movies that were in the input sets
+    input_ids = set()
+    for u in req.users:
+        input_ids.update(u)
+        
+    candidates = []
+    candidate_vectors = {}
+    for idx in candidate_indices:
+        row = movies.iloc[idx]
+        if row["id"] in input_ids:
+            continue
+            
+        v_c = index.reconstruct(int(idx))
+        candidate_vectors[idx] = v_c
+        
+        # Calculate fit for each user
+        scores = []
+        for centroid in valid_centroids:
+            scores.append(np.dot(v_c, centroid))
+            
+        # Group score is the minimum score across users (ensures no one hates it)
+        # plus a small weight for the average score
+        min_score = min(scores)
+        avg_score = sum(scores) / len(scores)
+        group_score = min_score * 0.8 + avg_score * 0.2
+        
+        candidates.append((group_score, idx, scores))
+        
+    # Sort by group score
+    candidates.sort(key=lambda x: x[0], reverse=True)
+    
+    # MMR Re-ranking
+    selected_indices = []
+    selected_vectors = []
+    
+    while len(selected_indices) < req.n and candidates:
+        best_score = -float('inf')
+        best_candidate_pos = -1
+        
+        for pos, (sim_to_query, idx, user_scores) in enumerate(candidates):
+            if not selected_vectors:
+                mmr_score = sim_to_query
+            else:
+                v_c = candidate_vectors[idx]
+                sims_to_selected = [np.dot(v_c, v_s) for v_s in selected_vectors]
+                max_sim_to_selected = max(sims_to_selected)
+                mmr_score = (1.0 - req.diversity) * sim_to_query - req.diversity * max_sim_to_selected
+                
+            if mmr_score > best_score:
+                best_score = mmr_score
+                best_candidate_pos = pos
+                
+        group_score, best_idx, user_scores = candidates.pop(best_candidate_pos)
+        selected_indices.append((best_idx, group_score, user_scores))
+        selected_vectors.append(candidate_vectors[best_idx])
+        
+    results = []
+    for idx, group_sim, u_scores in selected_indices:
+        row = movies.iloc[idx]
+        rec_dict = row_to_dict(row)
+        rec_dict["similarity_score"] = float(group_sim)
+        
+        rec_dict["user_scores"] = [min(100, max(0, int(s * 100))) for s in u_scores]
+        match_pct = min(100, max(0, int(group_sim * 100)))
+        
+        rec_dict["explanation"] = {
+            "match_pct": match_pct,
+            "reason": f"{match_pct}% Group Consensus Match"
+        }
+        
+        results.append(rec_dict)
+        
+    return results

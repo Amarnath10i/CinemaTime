@@ -17,10 +17,26 @@ import sys
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-# Disable SSL warnings (needed when VPN causes cert issues)
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+# ── Configuration from environment ─────────────────────────
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # python-dotenv is optional
 
-API_KEY = "10e0997eacd8c14e60ef40b8a46f695b"
+API_KEY = os.getenv("TMDB_API_KEY")
+if not API_KEY:
+    print("ERROR: TMDB_API_KEY environment variable is not set.")
+    print("Get one at https://www.themoviedb.org/settings/api")
+    print("Then: set TMDB_API_KEY=your_key  (or add to .env file)")
+    sys.exit(1)
+
+DISABLE_SSL_VERIFY = os.getenv("DISABLE_SSL_VERIFY", "").lower() == "true"
+SSL_VERIFY = not DISABLE_SSL_VERIFY
+
+if DISABLE_SSL_VERIFY:
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 BASE = "https://api.themoviedb.org/3"
 OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "backend")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -52,7 +68,7 @@ def api_get(url, max_attempts=4):
 
     for attempt in range(1, max_attempts + 1):
         try:
-            r = session.get(url, timeout=20, verify=False)
+            r = session.get(url, timeout=20, verify=SSL_VERIFY)
             r.raise_for_status()
             return r.json()
         except Exception as e:
@@ -281,6 +297,75 @@ print(f"    FAISS index built: {index.ntotal} vectors")
 
 save_df = df[["id", "title", "tags", "overview", "cast_display", "genres_display",
               "vote_average", "poster_path", "backdrop_path", "release_date", "media_type"]].copy()
+
+# ── Step 7: Vibe Clustering ────────────────────────────────────
+print("\n[7/7] Generating Vibe Clusters...")
+try:
+    from sklearn.cluster import KMeans
+    from collections import Counter
+    import json
+
+    n_clusters = 20
+    # use fewer init/iters for speed in build
+    kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=5, max_iter=100)
+    labels = kmeans.fit_predict(embeddings)
+    save_df["cluster_id"] = labels
+
+    clusters = []
+    stop_words = {"this", "that", "with", "from", "movie", "film", "series", "about", "their", "there", "which", "anime", "when", "into", "after"}
+    emoji_map = ["🚀", "👻", "🤣", "💔", "🧙", "🔫", "🕵️", "🎸", "🥊", "👽", "🦄", "🌋", "🏰", "🤖", "🎨", "🎭", "🎪", "🏝️", "⛩️", "🛸"]
+
+    for i in range(n_clusters):
+        cluster_df = save_df[save_df["cluster_id"] == i]
+        
+        all_genres = []
+        for g_list in cluster_df["genres_display"]:
+            if pd.isna(g_list): continue
+            for g in g_list.split(","):
+                if g.strip(): all_genres.append(g.strip())
+        top_genres = [g for g, _ in Counter(all_genres).most_common(3)]
+        
+        all_tags = []
+        for tags in cluster_df["tags"]:
+            if pd.isna(tags): continue
+            for w in tags.split():
+                if len(w) > 4 and w not in stop_words:
+                    all_tags.append(w)
+        top_tags = [t for t, _ in Counter(all_tags).most_common(5)]
+        
+        name = " & ".join(top_genres[:2]) if len(top_genres) >= 2 else (top_genres[0] if top_genres else "Mixed")
+        if top_tags:
+            name += f" ({top_tags[0].title()})"
+            
+        emoji = emoji_map[i % len(emoji_map)]
+        
+        # fix sample poster paths to absolute urls for frontend
+        samples = cluster_df[cluster_df["poster_path"] != ""].head(3).to_dict('records')
+        sample_list = []
+        for s in samples:
+            sample_list.append({
+                "id": s["id"], 
+                "title": s["title"], 
+                "poster": f"https://image.tmdb.org/t/p/w500{s['poster_path']}" if s['poster_path'] else "", 
+                "media_type": s["media_type"]
+            })
+            
+        clusters.append({
+            "id": i,
+            "name": f"{emoji} {name}",
+            "description": f"Vibes: {', '.join(top_tags)}",
+            "top_genres": top_genres,
+            "size": len(cluster_df),
+            "samples": sample_list
+        })
+
+    clusters_out = os.path.join(OUTPUT_DIR, "clusters.json")
+    with open(clusters_out, "w") as f:
+        json.dump(clusters, f, indent=2)
+    print(f"    Saved {n_clusters} clusters to {clusters_out}")
+except Exception as e:
+    print(f"    [WARN] Clustering failed (scikit-learn missing?): {e}")
+    save_df["cluster_id"] = -1
 
 pkl_out = os.path.join(OUTPUT_DIR, "movies.pkl")
 idx_out = os.path.join(OUTPUT_DIR, "movies.index")

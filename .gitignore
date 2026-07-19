@@ -3,3 +3,9 @@ __pycache__/
 frontend/node_modules/
 frontend/.next/
 frontend/.env.local
+
+# Model artifacts — regenerate with: python build_dataset.py
+*.pkl
+*.index
+backend/movies.pkl
+backend/movies.index

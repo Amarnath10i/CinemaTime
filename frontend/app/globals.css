@@ -12,15 +12,19 @@
     --dark-800: 20, 20, 20;
     --dark-700: 30, 30, 30;
   }
-  body {
+  html, body {
     background-color: rgb(var(--dark-900));
     color: #ffffff;
     font-family: 'Inter', sans-serif;
     overflow-x: hidden;
     scrollbar-width: none;
+    -ms-overflow-style: none;
   }
+  html::-webkit-scrollbar,
   body::-webkit-scrollbar {
     display: none;
+    width: 0;
+    height: 0;
   }
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Outfit', sans-serif;
