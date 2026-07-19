@@ -178,13 +178,20 @@ function MovieDetailContent() {
             </div>
 
             <div className="mt-8 flex gap-4">
-              {trailer && (
+              {trailer ? (
                 <button 
                   onClick={() => setShowTrailer(true)}
                   className="bg-white text-black px-8 py-3 rounded font-bold text-lg hover:bg-gray-200 transition-colors flex items-center gap-2 shadow-[0_0_20px_rgba(255,255,255,0.3)]"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-                  Play Trailer
+                  Play {trailer.type || "Trailer"}
+                </button>
+              ) : (
+                <button 
+                  disabled
+                  className="bg-white/5 text-white/40 px-8 py-3 rounded font-bold text-lg flex items-center gap-2 border border-white/10 cursor-not-allowed"
+                >
+                  Coming Soon
                 </button>
               )}
             </div>

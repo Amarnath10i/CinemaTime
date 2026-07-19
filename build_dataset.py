@@ -291,11 +291,9 @@ else:
     print("!" * 60)
     sys.exit(1)
 
-# Deduplicate and clean
-df["id"] = pd.to_numeric(df["id"], errors="coerce")
-df.dropna(subset=["id"], inplace=True)
-df["id"] = df["id"].astype(int)
-df.drop_duplicates(subset=["id", "media_type"], keep="first", inplace=True)
+# Deduplicate and clean — IDs are prefixed strings like "tmdb_550"
+df["id"] = df["id"].astype(str)
+df.drop_duplicates(subset=["id"], keep="first", inplace=True)
 df = df[df["overview"].astype(str).str.len() > 10].copy()
 df.reset_index(drop=True, inplace=True)
 
@@ -368,10 +366,12 @@ try:
         samples = cluster_df[cluster_df["poster_path"] != ""].head(3).to_dict('records')
         sample_list = []
         for s in samples:
+            pp = s.get("poster_path", "")
+            poster_url = pp if pp.startswith("http") else f"https://image.tmdb.org/t/p/w500{pp}" if pp else ""
             sample_list.append({
                 "id": s["id"], 
                 "title": s["title"], 
-                "poster": f"https://image.tmdb.org/t/p/w500{s['poster_path']}" if s['poster_path'] else "", 
+                "poster": poster_url,
                 "media_type": s["media_type"]
             })
             

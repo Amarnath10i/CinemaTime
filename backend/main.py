@@ -124,9 +124,10 @@ def get_poster(row, tmdb_data=None):
     except Exception:
         pass
     if pp:
-        return f"{POSTER_BASE}{pp}"
+        return pp if pp.startswith("http") else f"{POSTER_BASE}{pp}"
     if tmdb_data and tmdb_data.get("poster_path"):
-        return f"{POSTER_BASE}{tmdb_data['poster_path']}"
+        tp = tmdb_data["poster_path"]
+        return tp if tp.startswith("http") else f"{POSTER_BASE}{tp}"
     return PLACEHOLDER
 
 
@@ -143,15 +144,29 @@ def get_backdrop(row, tmdb_data=None):
     return ""
 
 
-def get_trailers(tmdb_data):
-    videos = tmdb_data.get("videos", {}).get("results", [])
+def get_trailers(media_data):
+    # Handle Jikan anime trailers
+    if "trailer" in media_data and "youtube_id" in media_data["trailer"]:
+        yt_id = media_data["trailer"]["youtube_id"]
+        if yt_id:
+            return [{"name": "Trailer", "key": yt_id, "site": "YouTube", "type": "Trailer"}]
+            
+    # Handle TMDB videos
+    videos = media_data.get("videos", {}).get("results", [])
     trailers = []
+    
+    # Priority: Trailer > Teaser > Clip > Featurette
+    priority = {"Trailer": 1, "Teaser": 2, "Clip": 3, "Featurette": 4}
+    
     for v in videos:
-        if v.get("site") == "YouTube" and v.get("type") == "Trailer":
+        if v.get("site") == "YouTube" and v.get("type") in priority:
             name_lower = v.get("name", "").lower()
-            if any(word in name_lower for word in ["short", "vertical", "glimpse", "glimps", "tiktok", "reel", "teaser", "promo", "preview"]):
+            # Still filter out vertical videos which ruin UX
+            if any(word in name_lower for word in ["short", "vertical", "tiktok", "reel"]):
                 continue
             trailers.append({"name": v["name"], "key": v["key"], "site": v["site"], "type": v["type"]})
+            
+    trailers.sort(key=lambda x: priority.get(x["type"], 99))
     return trailers
 
 def get_cast(tmdb_data, limit=10):
