@@ -59,11 +59,23 @@ export function MovieCard({ movie, index: i, priority = false }) {
               {movie.rating?.toFixed(1) || "N/A"}
             </div>
             
-            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
-               <MediaBadge type={movie.media_type || "movie"} />
-               <p className="mt-2 text-xs md:text-sm font-bold text-white line-clamp-2 leading-tight">{movie.title}</p>
-               {movie.release_date && (
+            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
+               <div className="flex items-center gap-2 mb-2">
+                 <MediaBadge type={movie.media_type || "movie"} />
+                 {movie.explanation && (
+                   <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#00b4ff]/20 text-[#00b4ff] border border-[#00b4ff]/30 shadow-sm">
+                     {movie.explanation.match_pct}% MATCH
+                   </span>
+                 )}
+               </div>
+               <p className="text-xs md:text-sm font-bold text-white line-clamp-2 leading-tight">{movie.title}</p>
+               {movie.release_date && !movie.explanation && (
                  <p className="text-[10px] md:text-xs text-gray-400 mt-1">{movie.release_date.slice(0, 4)}</p>
+               )}
+               {movie.explanation && (
+                 <p className="text-[9px] text-gray-300 mt-1 line-clamp-2 leading-tight italic">
+                   {movie.explanation.reason.split("—").pop().trim()}
+                 </p>
                )}
             </div>
           </div>
