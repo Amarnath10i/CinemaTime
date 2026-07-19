@@ -60,21 +60,17 @@ CinemaTime aggregates data from three different sources into a unified FAISS ind
    npm run dev
    ```
 
-## 🧪 Testing
+## 🧪 Testing & Evaluation
 The backend includes a Pytest suite, and a GitHub Action workflow automatically runs tests on push/PR to `main`.
 ```bash
 cd backend
 pytest tests/
 ```
 
-### Live Links
-- **Web App**: [https://cinema-time-black.vercel.app](https://cinema-time-black.vercel.app)
-- **Frontend**: Next.js, React, Tailwind CSS (Hosted on Vercel)
-- **Backend**: Python, FastAPI, Pandas, FAISS (Hosted on Railway)
-- **Data**: TMDB API, Custom Machine Learning Database
+We have also written an algorithmic evaluation for the group consensus model. To run it:
+```bash
+python backend/eval_group_rec.py
+```
 
-### Features
-- Real-time TMDB trending content and dynamic category filtering.
-- Dual-stack architecture with a fast Next.js UI and a dedicated Python machine learning server.
-- AI-based recommendations using FAISS vector search and pre-computed embeddings.
-- Dynamic trailer integration and complete cast/movie details.
+## 📄 Documentation
+For an in-depth breakdown of the Machine Learning architecture, including the Social Choice theory behind Group Consensus, MMR math, and FAISS scale/latency considerations, please read the **[Technical Report](docs/TECHNICAL_REPORT.md)**.
