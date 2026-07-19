@@ -120,105 +120,133 @@ if existing_df is None and os.path.exists(pkl_path):
     except Exception:
         existing_df = None
 
-# ── Step 2: Fetch genre maps ──────────────────────────────────
-print("\n[2/6] Fetching genre maps...")
+# ── Step 2: TMDB Fetcher (Movies) ────────────────────────────────
+print("\n[2/6] Fetching movies from TMDB...")
 movie_genres_data = api_get(f"{BASE}/genre/movie/list?api_key={API_KEY}&language=en-US")
-tv_genres_data = api_get(f"{BASE}/genre/tv/list?api_key={API_KEY}&language=en-US")
 movie_genre_map = {g["id"]: g["name"] for g in movie_genres_data.get("genres", [])}
-tv_genre_map = {g["id"]: g["name"] for g in tv_genres_data.get("genres", [])}
-print(f"    Movie genres: {len(movie_genre_map)}, TV genres: {len(tv_genre_map)}")
 
-def fetch_discover(media_type, pages, genre_map, extra_params=""):
+def fetch_tmdb_movies(pages, genre_map):
     items = []
-    title_key = "title" if media_type == "movie" else "name"
-    date_key = "release_date" if media_type == "movie" else "first_air_date"
     consecutive_failures = 0
     for page in range(1, pages + 1):
-        url = (
-            f"{BASE}/discover/{media_type}?api_key={API_KEY}"
-            f"&language=en-US&sort_by=popularity.desc&page={page}"
-            f"&vote_count.gte=50{extra_params}"
-        )
+        url = f"{BASE}/discover/movie?api_key={API_KEY}&language=en-US&sort_by=popularity.desc&page={page}&vote_count.gte=50"
         data = api_get(url)
         results = data.get("results", [])
         if not results:
             consecutive_failures += 1
-            if consecutive_failures >= 3:
-                print(f"      Stopping after {consecutive_failures} consecutive empty pages")
-                break
+            if consecutive_failures >= 3: break
             continue
         consecutive_failures = 0
         for r in results:
             genres = [genre_map.get(gid, "") for gid in r.get("genre_ids", [])]
-            genres = [g for g in genres if g]
             items.append({
-                "id": r["id"],
-                "title": r.get(title_key, "Unknown"),
+                "id": f"tmdb_{r['id']}",
+                "title": r.get("title", "Unknown"),
                 "overview": r.get("overview", ""),
-                "genres": genres,
+                "genres": [g for g in genres if g],
                 "vote_average": r.get("vote_average", 0),
-                "poster_path": r.get("poster_path", ""),
-                "backdrop_path": r.get("backdrop_path", ""),
-                "release_date": r.get(date_key, ""),
-                "media_type": media_type,
+                "poster_path": f"{r.get('poster_path', '')}",
+                "backdrop_path": f"{r.get('backdrop_path', '')}",
+                "release_date": r.get("release_date", ""),
+                "media_type": "movie",
             })
         if page % 10 == 0:
-            print(f"      Page {page}/{pages} - {len(items)} items collected")
+            print(f"      TMDB Page {page}/{pages} - {len(items)} movies collected")
     return items
 
-# ── Step 3: Fetch from TMDB API ───────────────────────────────
-print("\n[3/6] Fetching movies from TMDB...")
-movie_items = fetch_discover("movie", 250, movie_genre_map)
+movie_items = fetch_tmdb_movies(250, movie_genre_map)
 print(f"    Collected {len(movie_items)} movies from TMDB")
 
-print("\n[4/6] Fetching TV shows & anime from TMDB...")
-tv_items = fetch_discover("tv", 150, tv_genre_map)
-anime_items = fetch_discover("tv", 100, tv_genre_map, "&with_genres=16&with_original_language=ja")
-for item in anime_items:
-    if "Anime" not in item["genres"]:
-        item["genres"].append("Anime")
-    item["media_type"] = "anime"
-print(f"    TV Shows: {len(tv_items)}, Anime: {len(anime_items)}")
+# ── Step 3: TVmaze Fetcher (TV Shows) ────────────────────────────
+print("\n[3/6] Fetching TV Shows from TVmaze...")
+import re
+def fetch_tvmaze_shows(pages):
+    items = []
+    for page in range(pages):
+        url = f"https://api.tvmaze.com/shows?page={page}"
+        data = api_get(url)
+        if not data or not isinstance(data, list): break
+        for r in data:
+            summary = r.get("summary", "") or ""
+            clean_summary = re.sub(r'<[^>]+>', '', summary)
+            items.append({
+                "id": f"tvmaze_{r['id']}",
+                "title": r.get("name", "Unknown"),
+                "overview": clean_summary,
+                "genres": r.get("genres", []),
+                "vote_average": r.get("rating", {}).get("average", 0) or 0,
+                "poster_path": r.get("image", {}).get("original", ""),
+                "backdrop_path": r.get("image", {}).get("original", ""),
+                "release_date": r.get("premiered", ""),
+                "media_type": "tv",
+            })
+        if page % 5 == 0:
+            print(f"      TVmaze Page {page}/{pages} - {len(items)} shows collected")
+    return items
+
+tv_items = fetch_tvmaze_shows(40) # 40 pages * 250 = ~10k shows
+print(f"    Collected {len(tv_items)} TV shows from TVmaze")
+
+# ── Step 4: Jikan Fetcher (Anime) ────────────────────────────────
+print("\n[4/6] Fetching Anime from Jikan...")
+def fetch_jikan_anime(pages):
+    items = []
+    for page in range(1, pages + 1):
+        url = f"https://api.jikan.moe/v4/top/anime?page={page}"
+        data = api_get(url)
+        time.sleep(1) # Strict rate limit for Jikan
+        
+        results = data.get("data", []) if isinstance(data, dict) else []
+        if not results: break
+        
+        for r in results:
+            genres = [g["name"] for g in r.get("genres", [])]
+            themes = [g["name"] for g in r.get("themes", [])]
+            poster = r.get("images", {}).get("jpg", {}).get("large_image_url", "")
+            date_str = r.get("aired", {}).get("from", "")
+            if date_str: date_str = date_str.split("T")[0]
+            
+            items.append({
+                "id": f"jikan_{r['mal_id']}",
+                "title": r.get("title_english") or r.get("title", "Unknown"),
+                "overview": r.get("synopsis", ""),
+                "genres": genres + themes + ["Anime"],
+                "vote_average": r.get("score", 0) or 0,
+                "poster_path": poster,
+                "backdrop_path": poster,
+                "release_date": date_str,
+                "media_type": "anime",
+            })
+        if page % 5 == 0:
+            print(f"      Jikan Page {page}/{pages} - {len(items)} anime collected")
+    return items
+
+# Ask the user if they want to fetch Anime or skip it due to time
+# Since it takes time, we'll fetch just 20 pages (500 anime) by default.
+anime_items = fetch_jikan_anime(20) 
+print(f"    Collected {len(anime_items)} Anime from Jikan")
 
 # ── Step 5: Merge everything ──────────────────────────────────
 print("\n[5/6] Merging all data sources...")
 all_items = movie_items + tv_items + anime_items
 api_df = pd.DataFrame(all_items) if all_items else pd.DataFrame()
 
-# Merge with existing local data
 if existing_df is not None and len(existing_df) > 0:
     print(f"    Merging {len(api_df)} API items with {len(existing_df)} local items...")
+    
+    # Convert old integer IDs to tmdb strings for backward compatibility
+    existing_df["id"] = existing_df["id"].apply(lambda x: f"tmdb_{x}" if str(x).isdigit() else str(x))
 
-    # Normalize existing_df to have the same columns
     if "media_type" not in existing_df.columns:
         existing_df["media_type"] = "movie"
     if "genres_display" not in existing_df.columns:
-        # Try to extract genres from various possible column formats
-        if "genres" in existing_df.columns:
-            existing_df["genres_display"] = existing_df["genres"].apply(
-                lambda x: x if isinstance(x, str) else ", ".join(x) if isinstance(x, list) else ""
-            )
-        else:
-            existing_df["genres_display"] = ""
+        existing_df["genres_display"] = existing_df.get("genres", "").apply(lambda x: x if isinstance(x, str) else ", ".join(x) if isinstance(x, list) else "")
     if "cast_display" not in existing_df.columns:
-        if "cast" in existing_df.columns:
-            existing_df["cast_display"] = existing_df["cast"].apply(
-                lambda x: x if isinstance(x, str) else ""
-            )
-        else:
-            existing_df["cast_display"] = ""
-    if "vote_average" not in existing_df.columns:
-        existing_df["vote_average"] = 0
-    if "poster_path" not in existing_df.columns:
-        existing_df["poster_path"] = ""
-    if "backdrop_path" not in existing_df.columns:
-        existing_df["backdrop_path"] = ""
-    if "release_date" not in existing_df.columns:
-        existing_df["release_date"] = ""
-    if "overview" not in existing_df.columns:
-        existing_df["overview"] = ""
-
-    # Build tags for existing data
+        existing_df["cast_display"] = ""
+    for col in ["vote_average", "poster_path", "backdrop_path", "release_date", "overview"]:
+        if col not in existing_df.columns:
+            existing_df[col] = 0 if col == "vote_average" else ""
+            
     existing_df["tags"] = (
         existing_df["title"].astype(str).str.lower() + " "
         + existing_df["overview"].astype(str).str.lower() + " "
@@ -226,26 +254,23 @@ if existing_df is not None and len(existing_df) > 0:
         + existing_df["media_type"].astype(str)
     )
 
-    # Select common columns
     keep_cols = ["id", "title", "tags", "overview", "cast_display", "genres_display",
                  "vote_average", "poster_path", "backdrop_path", "release_date", "media_type"]
     for col in keep_cols:
         if col not in existing_df.columns:
             existing_df[col] = ""
-
     local_clean = existing_df[keep_cols].copy()
 else:
     local_clean = pd.DataFrame()
 
-# Process API data
 if len(api_df) > 0:
     api_df["genres_display"] = api_df["genres"].apply(lambda x: ", ".join(x) if isinstance(x, list) else "")
     api_df["cast_display"] = ""
     api_df["tags"] = (
-        api_df["title"].str.lower() + " "
-        + api_df["overview"].str.lower() + " "
+        api_df["title"].astype(str).str.lower() + " "
+        + api_df["overview"].astype(str).str.lower() + " "
         + api_df["genres"].apply(lambda x: " ".join([g.lower().replace(" ", "") for g in x]) if isinstance(x, list) else "") + " "
-        + api_df["media_type"]
+        + api_df["media_type"].astype(str)
     )
     keep_cols = ["id", "title", "tags", "overview", "cast_display", "genres_display",
                  "vote_average", "poster_path", "backdrop_path", "release_date", "media_type"]

@@ -87,13 +87,34 @@ def safe_get(row, col, default=""):
         return default
 
 
-def tmdb_fetch(tmdb_id, media_type="movie"):
-    mt = "movie" if media_type in ("movie", "") else "tv"
-    try:
-        url = f"{TMDB_BASE}/{mt}/{tmdb_id}?api_key={TMDB_API_KEY}&language=en-US&append_to_response=videos,credits"
-        return requests.get(url, timeout=10, verify=SSL_VERIFY).json()
-    except Exception:
-        return {}
+def fetch_media_details(item_id: str, media_type: str = "movie"):
+    """Fetch details from TMDB, TVmaze, or Jikan based on prefix."""
+    if item_id.startswith("tmdb_"):
+        raw_id = item_id.replace("tmdb_", "")
+        url = f"{TMDB_BASE}/{media_type}/{raw_id}?api_key={TMDB_API_KEY}&append_to_response=videos,credits&language=en-US"
+        try:
+            return requests.get(url, timeout=5, verify=SSL_VERIFY).json()
+        except:
+            return {}
+            
+    elif item_id.startswith("tvmaze_"):
+        raw_id = item_id.replace("tvmaze_", "")
+        url = f"https://api.tvmaze.com/shows/{raw_id}?embed=cast"
+        try:
+            return requests.get(url, timeout=5).json()
+        except:
+            return {}
+            
+    elif item_id.startswith("jikan_"):
+        raw_id = item_id.replace("jikan_", "")
+        url = f"https://api.jikan.moe/v4/anime/{raw_id}/full"
+        try:
+            data = requests.get(url, timeout=5).json()
+            return data.get("data", {}) if isinstance(data, dict) else {}
+        except:
+            return {}
+            
+    return {}
 
 
 def get_poster(row, tmdb_data=None):
@@ -147,16 +168,16 @@ def get_cast(tmdb_data, limit=10):
 
 
 def row_to_dict(row, tmdb_data=None, full=False):
-    tmdb_id = int(getattr(row, "id", 0))
+    item_id = str(getattr(row, "id", ""))
     media_type = getattr(row, "media_type", "movie") if hasattr(row, "media_type") else "movie"
 
     if full and tmdb_data is None:
-        tmdb_data = tmdb_fetch(tmdb_id, media_type)
+        tmdb_data = fetch_media_details(item_id, media_type)
     if tmdb_data is None:
         tmdb_data = {}
 
     return {
-        "id": tmdb_id,
+        "id": item_id,
         "title": getattr(row, "title", ""),
         "overview": getattr(row, "overview", tmdb_data.get("overview", "")),
         "genres": getattr(row, "genres_display", "") if hasattr(row, "genres_display") else "",
@@ -205,55 +226,65 @@ def movie_titles(q: Optional[str] = Query(None)):
     results = []
     for _, row in subset.iterrows():
         mt = row.get("media_type") if "media_type" in movies.columns else "movie"
-        results.append({"id": int(row["id"]), "title": row["title"], "media_type": mt})
+        results.append({"id": str(row["id"]), "title": row["title"], "media_type": mt})
     return results
 
 
-@app.get("/api/movie/{tmdb_id}")
-def movie_detail(tmdb_id: int):
-    match = movies[movies["id"] == tmdb_id]
+@app.get("/api/movie/{item_id:path}")
+def movie_detail(item_id: str):
+    # Backward compatibility for old integer IDs hitting this route directly
+    if item_id.isdigit():
+        item_id = f"tmdb_{item_id}"
+        
+    match = movies[movies["id"] == item_id]
     
     if match.empty:
-        # Movie not in local DB — fetch live from TMDB
-        tmdb_data = tmdb_fetch(tmdb_id, "movie")
-        if not tmdb_data or "id" not in tmdb_data:
-            tmdb_data = tmdb_fetch(tmdb_id, "tv")
-            if not tmdb_data or "id" not in tmdb_data:
-                return {"error": "Not found"}
+        # Movie not in local DB — fetch live
+        mt_guess = "tv" if "tvmaze" in item_id else "anime" if "jikan" in item_id else "movie"
+        media_data = fetch_media_details(item_id, mt_guess)
+        if not media_data:
+            return {"error": "Not found"}
         
-        mt = "tv" if "first_air_date" in tmdb_data else "movie"
-        title = tmdb_data.get("title", tmdb_data.get("name", ""))
-        poster_path = tmdb_data.get("poster_path", "")
-        backdrop_path = tmdb_data.get("backdrop_path", "")
-        genres_list = tmdb_data.get("genres", [])
-        genres_str = ", ".join([g["name"] for g in genres_list])
+        title = media_data.get("title", media_data.get("name", media_data.get("title_english", "")))
+        poster_path = media_data.get("poster_path", media_data.get("image", {}).get("original", ""))
+        backdrop_path = media_data.get("backdrop_path", "")
+        
+        genres_list = media_data.get("genres", [])
+        if genres_list and isinstance(genres_list[0], dict):
+            genres_str = ", ".join([g["name"] for g in genres_list])
+        else:
+            genres_str = ", ".join(genres_list)
         
         return {
-            "id": tmdb_id,
+            "id": item_id,
             "title": title,
-            "overview": tmdb_data.get("overview", ""),
+            "overview": media_data.get("overview", media_data.get("summary", media_data.get("synopsis", ""))),
             "genres": genres_str,
             "cast": "",
-            "rating": tmdb_data.get("vote_average", 0),
-            "poster": f"{POSTER_BASE}{poster_path}" if poster_path else PLACEHOLDER,
+            "rating": media_data.get("vote_average", media_data.get("rating", {}).get("average", media_data.get("score", 0))),
+            "poster": f"{POSTER_BASE}{poster_path}" if poster_path and not poster_path.startswith("http") else poster_path or PLACEHOLDER,
             "backdrop": f"https://image.tmdb.org/t/p/original{backdrop_path}" if backdrop_path else "",
-            "release_date": tmdb_data.get("release_date", tmdb_data.get("first_air_date", "")),
-            "runtime": tmdb_data.get("runtime", tmdb_data.get("episode_run_time", [0])[0] if tmdb_data.get("episode_run_time") else 0),
-            "tagline": tmdb_data.get("tagline", ""),
-            "media_type": mt,
-            "trailers": get_trailers(tmdb_data),
-            "cast_details": get_cast(tmdb_data),
+            "release_date": media_data.get("release_date", media_data.get("first_air_date", media_data.get("premiered", ""))),
+            "runtime": media_data.get("runtime", 0),
+            "tagline": media_data.get("tagline", ""),
+            "media_type": mt_guess,
+            "trailers": get_trailers(media_data),
+            "cast_details": get_cast(media_data),
         }
         
     row = match.iloc[0]
     media_type = row.get("media_type") if "media_type" in movies.columns else "movie"
-    tmdb_data = tmdb_fetch(tmdb_id, media_type)
-    return row_to_dict(row, tmdb_data, full=True)
+    media_data = fetch_media_details(item_id, media_type)
+    return row_to_dict(row, media_data, full=True)
 
 
-@app.get("/api/recommend/{tmdb_id}")
-def recommend(tmdb_id: int, n: int = 10, diversity: float = 0.5):
-    match = movies[movies["id"] == tmdb_id]
+@app.get("/api/recommend/{item_id:path}")
+def recommend(item_id: str, n: int = 10, diversity: float = 0.5):
+    # Backward compatibility
+    if item_id.isdigit():
+        item_id = f"tmdb_{item_id}"
+        
+    match = movies[movies["id"] == item_id]
     if match.empty:
         # If movie isn't in local DB, we can't do FAISS search
         return []
