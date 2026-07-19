@@ -6,3 +6,5 @@ faiss-cpu
 requests==2.31.0
 urllib3==2.1.0
 scikit-learn
+sentence-transformers
+python-dotenv

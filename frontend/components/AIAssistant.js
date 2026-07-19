@@ -95,7 +95,7 @@ export function AIAssistant() {
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search movies, actors..."
+            placeholder="Search titles, actors, or describe a vibe..."
             className={`bg-transparent text-sm text-white placeholder-gray-500 focus:outline-none transition-all duration-300 overflow-hidden ${
               isExpanded ? "w-36 md:w-56 lg:w-72 ml-3 opacity-100" : "w-0 opacity-0 ml-0 border-none p-0"
             }`}
