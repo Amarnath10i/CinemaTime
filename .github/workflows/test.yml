@@ -25,6 +25,8 @@ jobs:
         pip install pytest httpx
         
     - name: Run Tests
+      env:
+        TMDB_API_KEY: "dummy_key_for_tests"
       run: |
         cd backend
         pytest tests/
