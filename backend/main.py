@@ -13,10 +13,10 @@ from pydantic import BaseModel
 # ── Configuration from environment ─────────────────────────
 TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 if not TMDB_API_KEY:
-    raise RuntimeError(
-        "TMDB_API_KEY environment variable is not set. "
-        "Get one at https://www.themoviedb.org/settings/api "
-        "and set it in your .env or deployment config."
+    print(
+        "⚠️ WARNING: TMDB_API_KEY environment variable is not set. "
+        "Live fetches for missing data/trailers will fail. "
+        "Set it in your deployment config."
     )
 
 DISABLE_SSL_VERIFY = os.getenv("DISABLE_SSL_VERIFY", "").lower() == "true"
