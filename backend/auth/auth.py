@@ -16,6 +16,7 @@ JWT_EXPIRY_HOURS = 24 * 30  # 30 days
 # Supabase Configuration (optional - for cloud sync)
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
+SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
 
 # Local file fallback for user data (if no Supabase)
 USERS_FILE = os.path.join(os.path.dirname(__file__), "users.json")
@@ -152,21 +153,26 @@ async def sync_to_supabase(user: dict):
     try:
         import httpx
         async with httpx.AsyncClient() as client:
-            await client.patch(
-                f"{SUPABASE_URL}/rest/v1/users?id=eq.{user['id']}",
+            # Upsert user preferences
+            await client.post(
+                f"{SUPABASE_URL}/rest/v1/users",
                 headers={
                     "apikey": SUPABASE_SERVICE_KEY,
                     "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
                     "Content-Type": "application/json",
-                    "Prefer": "return=minimal"
+                    "Prefer": "resolution=merge-duplicates,return=minimal"
                 },
                 json={
+                    "id": user["id"],
+                    "email": user["email"],
+                    "name": user.get("name"),
                     "preferences": user.get("preferences", {}),
                     "updated_at": datetime.utcnow().isoformat()
                 }
             )
         return True
-    except:
+    except Exception as e:
+        print(f"Supabase sync error: {e}")
         return False
 
 async def load_from_supabase(user_id: str) -> Optional[dict]:
@@ -188,6 +194,6 @@ async def load_from_supabase(user_id: str) -> Optional[dict]:
                 data = resp.json()
                 if data:
                     return data[0].get("preferences")
-    except:
-        pass
+    except Exception as e:
+        print(f"Supabase load error: {e}")
     return None
