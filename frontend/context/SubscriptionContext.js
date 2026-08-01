@@ -1,5 +1,6 @@
 "use client";
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { useAuth } from "./AuthContext";
 
 const SubscriptionContext = createContext(null);
 
@@ -27,6 +28,7 @@ export const INDIAN_OTT_PLATFORMS = [
 const STORAGE_KEY = "cinema_time_subscriptions";
 
 export function SubscriptionProvider({ children }) {
+  const { user, isAuthenticated, updatePreferences, loading: authLoading } = useAuth();
   const [subscriptions, setSubscriptions] = useState(() => {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem(STORAGE_KEY);
@@ -42,16 +44,45 @@ export function SubscriptionProvider({ children }) {
   });
 
   const [isLoaded, setIsLoaded] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
+  // Load from cloud when authenticated
   useEffect(() => {
+    if (isAuthenticated && user?.preferences?.subscriptions) {
+      const cloudSubs = new Set(user.preferences.subscriptions);
+      setSubscriptions(cloudSubs);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(cloudSubs)));
+    }
     setIsLoaded(true);
-  }, []);
+  }, [isAuthenticated, user]);
 
+  // Save to localStorage
   useEffect(() => {
     if (isLoaded) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(subscriptions)));
     }
   }, [subscriptions, isLoaded]);
+
+  // Sync to cloud when authenticated
+  const syncToCloud = useCallback(async () => {
+    if (!isAuthenticated) return;
+    setSyncing(true);
+    try {
+      await updatePreferences({ subscriptions: Array.from(subscriptions) });
+    } catch (e) {
+      console.error("Sync failed:", e);
+    } finally {
+      setSyncing(false);
+    }
+  }, [isAuthenticated, subscriptions, updatePreferences]);
+
+  // Auto-sync on subscription changes (debounced)
+  useEffect(() => {
+    if (isAuthenticated && isLoaded) {
+      const timer = setTimeout(syncToCloud, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [subscriptions, isAuthenticated, isLoaded, syncToCloud]);
 
   const toggleSubscription = useCallback((providerId) => {
     setSubscriptions((prev) => {
@@ -79,6 +110,8 @@ export function SubscriptionProvider({ children }) {
     isSubscribed,
     getSubscribedProviders,
     platforms: INDIAN_OTT_PLATFORMS,
+    syncing,
+    syncToCloud
   };
 
   return (

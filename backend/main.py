@@ -3,12 +3,20 @@ import numpy as np
 import faiss
 import requests
 import urllib3
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, Header, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 import os
 import pandas as pd
 from pydantic import BaseModel
+
+# Auth module
+from auth.auth import (
+    UserCreate, UserLogin, TokenResponse, UserPreferences,
+    create_user, authenticate_user, create_token, decode_token,
+    get_current_user, update_user_preferences, get_user_preferences,
+    sync_to_supabase, load_from_supabase
+)
 
 # ── Configuration from environment ─────────────────────────
 TMDB_API_KEY = os.getenv("TMDB_API_KEY")
@@ -905,3 +913,89 @@ def search_providers(q: str, media_type: str = "movie"):
         })
     
     return results
+
+
+# ── Authentication ───────────────────────────────────────────────
+@app.post("/api/auth/register", response_model=TokenResponse)
+def register(user_data: UserCreate):
+    """Register a new user."""
+    user = create_user(user_data.email, user_data.password, user_data.name)
+    token = create_token(user["id"], user["email"])
+    return {
+        "access_token": token,
+        "user": {
+            "id": user["id"],
+            "email": user["email"],
+            "name": user["name"],
+            "preferences": user["preferences"]
+        }
+    }
+
+@app.post("/api/auth/login", response_model=TokenResponse)
+def login(credentials: UserLogin):
+    """Login user."""
+    user = authenticate_user(credentials.email, credentials.password)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    # Try to load preferences from Supabase (cloud sync)
+    supabase_prefs = None
+    import asyncio
+    try:
+        supabase_prefs = asyncio.run(load_from_supabase(user["id"]))
+    except:
+        pass
+    
+    # Merge local + cloud preferences (cloud wins for subscriptions)
+    local_prefs = user.get("preferences", {})
+    if supabase_prefs:
+        merged_prefs = {**local_prefs, **supabase_prefs}
+        user["preferences"] = merged_prefs
+    
+    token = create_token(user["id"], user["email"])
+    return {
+        "access_token": token,
+        "user": {
+            "id": user["id"],
+            "email": user["email"],
+            "name": user["name"],
+            "preferences": user["preferences"]
+        }
+    }
+
+@app.get("/api/auth/me")
+def get_me(current_user: dict = Depends(get_current_user)):
+    """Get current user profile."""
+    return {
+        "id": current_user["id"],
+        "email": current_user["email"],
+        "name": current_user["name"],
+        "preferences": current_user.get("preferences", {})
+    }
+
+@app.put("/api/auth/preferences")
+def update_preferences(
+    prefs: UserPreferences,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update user preferences (subscriptions, recent searches, etc.)."""
+    updated = update_user_preferences(current_user["email"], prefs.dict())
+    
+    # Sync to Supabase (cloud)
+    import asyncio
+    try:
+        asyncio.run(sync_to_supabase({**current_user, "preferences": updated}))
+    except:
+        pass
+    
+    return {"preferences": updated}
+
+@app.post("/api/auth/sync")
+def manual_sync(current_user: dict = Depends(get_current_user)):
+    """Manually trigger cloud sync."""
+    import asyncio
+    try:
+        result = asyncio.run(sync_to_supabase(current_user))
+        return {"synced": result}
+    except Exception as e:
+        return {"synced": False, "error": str(e)}

@@ -8,3 +8,5 @@ urllib3==2.1.0
 scikit-learn
 sentence-transformers
 python-dotenv
+pyjwt==2.8.0
+httpx==0.25.2
