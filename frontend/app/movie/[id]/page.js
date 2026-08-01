@@ -3,6 +3,7 @@ import { useState, useEffect, Suspense } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import { WhereToWatch } from "../../../components/WhereToWatch";
 
 function MediaBadge({ type }) {
   const config = {
@@ -225,6 +226,11 @@ function MovieDetailContent() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Where to Watch Section */}
+      <div className="px-6 md:px-12 mt-8">
+        <WhereToWatch itemId={id} mediaType={movie.media_type || "movie"} />
       </div>
 
       {/* Recommendations Row */}

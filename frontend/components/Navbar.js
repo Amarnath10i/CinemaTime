@@ -3,6 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { AIAssistant } from "./AIAssistant";
+import { SubscriptionSettings } from "./SubscriptionSettings";
 
 export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -28,6 +29,7 @@ export function Navbar() {
 
         <div className="flex items-center gap-4">
           <AIAssistant />
+          <SubscriptionSettings />
           
           <button 
             className="md:hidden p-2 text-white hover:text-gray-300 transition-colors"

@@ -71,6 +71,27 @@ TMDB_BASE = "https://api.themoviedb.org/3"
 POSTER_BASE = "https://image.tmdb.org/t/p/w500"
 PLACEHOLDER = "https://via.placeholder.com/500x750?text=No+Poster"
 
+# India OTT Provider Configuration
+INDIAN_PROVIDERS = {
+    8: {"name": "Netflix", "logo": "https://image.tmdb.org/t/p/w200/netflix.png", "deep_link": "netflix://title/{tmdb_id}", "web_url": "https://www.netflix.com/in/title/{tmdb_id}"},
+    9: {"name": "Amazon Prime Video", "logo": "https://image.tmdb.org/t/p/w200/prime.png", "deep_link": "primevideo://detail/{tmdb_id}", "web_url": "https://www.primevideo.com/detail/{tmdb_id}"},
+    337: {"name": "Disney+ Hotstar", "logo": "https://image.tmdb.org/t/p/w200/hotstar.png", "deep_link": "hotstar://content/{tmdb_id}", "web_url": "https://www.hotstar.com/in/movies/{tmdb_id}"},
+    356: {"name": "JioCinema", "logo": "https://image.tmdb.org/t/p/w200/jiocinema.png", "deep_link": "jiocinema://content/{tmdb_id}", "web_url": "https://www.jiocinema.com/movies/{tmdb_id}"},
+    358: {"name": "Sony LIV", "logo": "https://image.tmdb.org/t/p/w200/sonyliv.png", "deep_link": "sonyliv://content/{tmdb_id}", "web_url": "https://www.sonyliv.com/movies/{tmdb_id}"},
+    359: {"name": "ZEE5", "logo": "https://image.tmdb.org/t/p/w200/zee5.png", "deep_link": "zee5://content/{tmdb_id}", "web_url": "https://www.zee5.com/movies/{tmdb_id}"},
+    68: {"name": "Apple TV+", "logo": "https://image.tmdb.org/t/p/w200/apple.png", "deep_link": "appletv://content/{tmdb_id}", "web_url": "https://tv.apple.com/in/movie/{tmdb_id}"},
+    384: {"name": "MX Player", "logo": "https://image.tmdb.org/t/p/w200/mxplayer.png", "deep_link": "mxplayer://content/{tmdb_id}", "web_url": "https://www.mxplayer.in/movie/{tmdb_id}"},
+    385: {"name": "Voot", "logo": "https://image.tmdb.org/t/p/w200/voot.png", "deep_link": "voot://content/{tmdb_id}", "web_url": "https://www.voot.com/movies/{tmdb_id}"},
+    386: {"name": "Aha", "logo": "https://image.tmdb.org/t/p/w200/aha.png", "deep_link": "aha://content/{tmdb_id}", "web_url": "https://www.aha.video/movie/{tmdb_id}"},
+    387: {"name": "Sun NXT", "logo": "https://image.tmdb.org/t/p/w200/sunnxt.png", "deep_link": "sunnxt://content/{tmdb_id}", "web_url": "https://www.sunnxt.com/movie/{tmdb_id}"},
+    388: {"name": "Hoichoi", "logo": "https://image.tmdb.org/t/p/w200/hoichoi.png", "deep_link": "hoichoi://content/{tmdb_id}", "web_url": "https://www.hoichoi.tv/movie/{tmdb_id}"},
+    389: {"name": "Eros Now", "logo": "https://image.tmdb.org/t/p/w200/erosnow.png", "deep_link": "erosnow://content/{tmdb_id}", "web_url": "https://www.erosnow.com/movie/{tmdb_id}"},
+    390: {"name": "Lionsgate Play", "logo": "https://image.tmdb.org/t/p/w200/lionsgate.png", "deep_link": "lionsgate://content/{tmdb_id}", "web_url": "https://www.lionsgateplay.com/movie/{tmdb_id}"},
+    391: {"name": "Mubi", "logo": "https://image.tmdb.org/t/p/w200/mubi.png", "deep_link": "mubi://content/{tmdb_id}", "web_url": "https://mubi.com/films/{tmdb_id}"},
+    392: {"name": "DocuBay", "logo": "https://image.tmdb.org/t/p/w200/docubay.png", "deep_link": "docubay://content/{tmdb_id}", "web_url": "https://www.docubay.com/movie/{tmdb_id}"},
+    393: {"name": "ManoramaMAX", "logo": "https://image.tmdb.org/t/p/w200/manorama.png", "deep_link": "manorama://content/{tmdb_id}", "web_url": "https://www.manoramamax.com/movie/{tmdb_id}"},
+}
+
 
 @app.get("/")
 def root():
@@ -785,4 +806,102 @@ def group_recommend(req: GroupRequest):
         
         results.append(rec_dict)
         
+    return results
+
+
+# ── Watch Providers (India) ────────────────────────────────────
+@app.get("/api/watch-providers/{item_id:path}")
+def get_watch_providers(item_id: str):
+    """Get streaming providers for a movie/show in India."""
+    if item_id.isdigit():
+        item_id = f"tmdb_{item_id}"
+    
+    # Determine media type
+    mt_guess = "tv" if "tvmaze" in item_id else "anime" if "jikan" in item_id else "movie"
+    
+    # Try to get from local DB first
+    match = movies[movies["id"] == item_id]
+    if not match.empty:
+        row = match.iloc[0]
+        media_type = row.get("media_type") if "media_type" in movies.columns else "movie"
+    else:
+        media_type = mt_guess
+    
+    # Fetch from TMDB
+    raw_id = item_id.replace("tmdb_", "").replace("tvmaze_", "").replace("jikan_", "")
+    url = f"{TMDB_BASE}/{media_type}/{raw_id}/watch/providers?api_key={TMDB_API_KEY}"
+    
+    try:
+        response = requests.get(url, timeout=10, verify=SSL_VERIFY)
+        data = response.json()
+    except:
+        return {"results": {}, "providers": []}
+    
+    # Extract India (IN) providers
+    in_data = data.get("results", {}).get("IN", {})
+    if not in_data:
+        return {"results": {}, "providers": []}
+    
+    # Parse different provider types
+    provider_types = {
+        "flatrate": "Subscription",
+        "rent": "Rent",
+        "buy": "Buy",
+        "ads": "Free with Ads",
+        "free": "Free"
+    }
+    
+    providers = []
+    for ptype, label in provider_types.items():
+        for p in in_data.get(ptype, []):
+            provider_id = p.get("provider_id")
+            if provider_id in INDIAN_PROVIDERS:
+                info = INDIAN_PROVIDERS[provider_id]
+                tmdb_id = raw_id if media_type == "movie" else raw_id
+                
+                # Generate deep links
+                web_url = info["web_url"].format(tmdb_id=tmdb_id)
+                deep_link = info["deep_link"].format(tmdb_id=tmdb_id)
+                
+                providers.append({
+                    "provider_id": provider_id,
+                    "name": info["name"],
+                    "logo": p.get("logo_path", info["logo"]),
+                    "type": label,
+                    "web_url": web_url,
+                    "deep_link": deep_link,
+                    "display_priority": p.get("display_priority", 999)
+                })
+    
+    # Sort by display priority
+    providers.sort(key=lambda x: x["display_priority"])
+    
+    return {
+        "results": in_data,
+        "providers": providers
+    }
+
+
+# ── Search Providers (Multi) ───────────────────────────────────
+@app.get("/api/search/providers")
+def search_providers(q: str, media_type: str = "movie"):
+    """Search for movies/shows and return their providers."""
+    url = f"{TMDB_BASE}/search/{media_type}?api_key={TMDB_API_KEY}&query={q}&language=en-US"
+    
+    try:
+        data = requests.get(url, timeout=10, verify=SSL_VERIFY).json()
+    except:
+        return []
+    
+    results = []
+    for item in data.get("results", [])[:10]:
+        item_id = f"tmdb_{item['id']}"
+        # We'll fetch providers client-side to avoid N+1 queries
+        results.append({
+            "id": item_id,
+            "title": item.get("title", item.get("name", "Unknown")),
+            "poster": f"{POSTER_BASE}{item['poster_path']}" if item.get("poster_path") else PLACEHOLDER,
+            "media_type": media_type
+        })
+    
     return results
