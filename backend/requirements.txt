@@ -9,4 +9,5 @@ scikit-learn
 sentence-transformers
 python-dotenv
 pyjwt==2.8.0
+email-validator
 httpx==0.25.2
