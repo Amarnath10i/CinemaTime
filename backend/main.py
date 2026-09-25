@@ -696,7 +696,7 @@ def search_vibe(q: str, n: int = 15, diversity: float = 0.5):
     return results
 
 class GroupRequest(BaseModel):
-    users: list[list[int]]
+    users: list[list[str]]
     n: int = 10
     diversity: float = 0.5
 
