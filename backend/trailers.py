@@ -30,6 +30,9 @@ import requests
 TMDB_BASE = "https://api.themoviedb.org/3"
 JIKAN_BASE = "https://api.jikan.moe/v4"
 TVMAZE_BASE = "https://api.tvmaze.com"
+# Jikan answers in well under a second when healthy; when it is down, fail fast
+# and fall back to TMDB rather than stalling the page.
+JIKAN_TIMEOUT = 3
 
 # TMDB filters videos to the request language unless told otherwise. Ask for
 # English, language-less uploads, and the original languages most titles in
@@ -354,7 +357,7 @@ def jikan_videos(mal_id, full=None):
     if key:
         videos.append(_video(key, "Official Trailer", "Trailer", "jikan", True))
 
-    data = _get_json(f"{JIKAN_BASE}/anime/{mal_id}/videos").get("data")
+    data = _get_json(f"{JIKAN_BASE}/anime/{mal_id}/videos", timeout=JIKAN_TIMEOUT).get("data")
     if not isinstance(data, dict):
         return videos
 
@@ -549,7 +552,7 @@ def resolve_media(item_id, media_type="movie", title="", year="", need_details=T
             videos += tmdb_season_videos(tmdb_id, tmdb)
 
     elif prefix == "jikan":
-        full = _get_json(f"{JIKAN_BASE}/anime/{raw_id}/full")
+        full = _get_json(f"{JIKAN_BASE}/anime/{raw_id}/full", timeout=JIKAN_TIMEOUT)
         data = full.get("data") if isinstance(full.get("data"), dict) else {}
         title = title or data.get("title_english") or data.get("title") or ""
         year = year or _year(data.get("year") or (data.get("aired") or {}).get("from"))
@@ -595,7 +598,7 @@ def resolve_tmdb_ref(item_id, media_type="movie", title="", year="", source=None
         if not ref[0]:
             ref = tmdb_search([title or show.get("name")], year or _year(show.get("premiered")), kinds=("tv",))
     elif prefix == "jikan":
-        anime = source if source is not None else (_get_json(f"{JIKAN_BASE}/anime/{raw_id}").get("data") or {})
+        anime = source if source is not None else (_get_json(f"{JIKAN_BASE}/anime/{raw_id}", timeout=JIKAN_TIMEOUT).get("data") or {})
         kinds = ("movie", "tv") if anime.get("type") == "Movie" else ("tv", "movie")
         ref = tmdb_search(_anime_titles(anime, title), year, kinds=kinds, animation=True)
 
