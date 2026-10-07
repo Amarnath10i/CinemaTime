@@ -89,12 +89,18 @@ export const TrailerPlayer = forwardRef(function TrailerPlayer(
             rel: 0,
             playsinline: 1,
             iv_load_policy: 3,
-            ...(background ? { loop: 1, playlist: current.key, disablekb: 1, fs: 0 } : {}),
+            ...(background ? { loop: 1, playlist: current.key, disablekb: 1, fs: 0, cc_load_policy: 0 } : {}),
           },
           events: {
             onReady: (e) => {
               if (callbacks.current.muted) e.target.mute();
+              // Captions over a silent background loop are just clutter.
+              if (background) e.target.unloadModule?.("captions");
               e.target.playVideo();
+            },
+            onStateChange: (e) => {
+              // The captions module can load once playback starts, so drop it again then.
+              if (background && e.data === 1) e.target.unloadModule?.("captions");
             },
             onError: () => {
               const { count, index: i, onIndexChange: changed, onUnavailable: unavailable } = callbacks.current;

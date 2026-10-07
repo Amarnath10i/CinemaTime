@@ -5,7 +5,7 @@ import numpy as np
 import faiss
 import requests
 import urllib3
-from fastapi import FastAPI, Query, Header, HTTPException, Depends
+from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 import os
@@ -29,15 +29,7 @@ try:
 except ImportError:
     pass
 
-from trailers import resolve_media, resolve_trailers, resolve_tmdb_ref
-
-# Auth module
-from auth.auth import (
-    UserCreate, UserLogin, TokenResponse, UserPreferences,
-    create_user, authenticate_user, create_token, decode_token,
-    get_current_user, update_user_preferences, get_user_preferences,
-    sync_to_supabase, load_from_supabase
-)
+from trailers import resolve_media, resolve_trailers
 
 # ── Configuration from environment ─────────────────────────
 TMDB_API_KEY = os.getenv("TMDB_API_KEY")
@@ -110,27 +102,6 @@ TMDB_GENRES = {
     37: "Western", 10759: "Action & Adventure", 10762: "Kids", 10763: "News",
     10764: "Reality", 10765: "Sci-Fi & Fantasy", 10766: "Soap", 10767: "Talk",
     10768: "War & Politics",
-}
-
-# India OTT Provider Configuration
-INDIAN_PROVIDERS = {
-    8: {"name": "Netflix", "logo": "https://image.tmdb.org/t/p/w200/netflix.png", "deep_link": "netflix://title/{tmdb_id}", "web_url": "https://www.netflix.com/in/title/{tmdb_id}"},
-    9: {"name": "Amazon Prime Video", "logo": "https://image.tmdb.org/t/p/w200/prime.png", "deep_link": "primevideo://detail/{tmdb_id}", "web_url": "https://www.primevideo.com/detail/{tmdb_id}"},
-    337: {"name": "Disney+ Hotstar", "logo": "https://image.tmdb.org/t/p/w200/hotstar.png", "deep_link": "hotstar://content/{tmdb_id}", "web_url": "https://www.hotstar.com/in/movies/{tmdb_id}"},
-    356: {"name": "JioCinema", "logo": "https://image.tmdb.org/t/p/w200/jiocinema.png", "deep_link": "jiocinema://content/{tmdb_id}", "web_url": "https://www.jiocinema.com/movies/{tmdb_id}"},
-    358: {"name": "Sony LIV", "logo": "https://image.tmdb.org/t/p/w200/sonyliv.png", "deep_link": "sonyliv://content/{tmdb_id}", "web_url": "https://www.sonyliv.com/movies/{tmdb_id}"},
-    359: {"name": "ZEE5", "logo": "https://image.tmdb.org/t/p/w200/zee5.png", "deep_link": "zee5://content/{tmdb_id}", "web_url": "https://www.zee5.com/movies/{tmdb_id}"},
-    68: {"name": "Apple TV+", "logo": "https://image.tmdb.org/t/p/w200/apple.png", "deep_link": "appletv://content/{tmdb_id}", "web_url": "https://tv.apple.com/in/movie/{tmdb_id}"},
-    384: {"name": "MX Player", "logo": "https://image.tmdb.org/t/p/w200/mxplayer.png", "deep_link": "mxplayer://content/{tmdb_id}", "web_url": "https://www.mxplayer.in/movie/{tmdb_id}"},
-    385: {"name": "Voot", "logo": "https://image.tmdb.org/t/p/w200/voot.png", "deep_link": "voot://content/{tmdb_id}", "web_url": "https://www.voot.com/movies/{tmdb_id}"},
-    386: {"name": "Aha", "logo": "https://image.tmdb.org/t/p/w200/aha.png", "deep_link": "aha://content/{tmdb_id}", "web_url": "https://www.aha.video/movie/{tmdb_id}"},
-    387: {"name": "Sun NXT", "logo": "https://image.tmdb.org/t/p/w200/sunnxt.png", "deep_link": "sunnxt://content/{tmdb_id}", "web_url": "https://www.sunnxt.com/movie/{tmdb_id}"},
-    388: {"name": "Hoichoi", "logo": "https://image.tmdb.org/t/p/w200/hoichoi.png", "deep_link": "hoichoi://content/{tmdb_id}", "web_url": "https://www.hoichoi.tv/movie/{tmdb_id}"},
-    389: {"name": "Eros Now", "logo": "https://image.tmdb.org/t/p/w200/erosnow.png", "deep_link": "erosnow://content/{tmdb_id}", "web_url": "https://www.erosnow.com/movie/{tmdb_id}"},
-    390: {"name": "Lionsgate Play", "logo": "https://image.tmdb.org/t/p/w200/lionsgate.png", "deep_link": "lionsgate://content/{tmdb_id}", "web_url": "https://www.lionsgateplay.com/movie/{tmdb_id}"},
-    391: {"name": "Mubi", "logo": "https://image.tmdb.org/t/p/w200/mubi.png", "deep_link": "mubi://content/{tmdb_id}", "web_url": "https://mubi.com/films/{tmdb_id}"},
-    392: {"name": "DocuBay", "logo": "https://image.tmdb.org/t/p/w200/docubay.png", "deep_link": "docubay://content/{tmdb_id}", "web_url": "https://www.docubay.com/movie/{tmdb_id}"},
-    393: {"name": "ManoramaMAX", "logo": "https://image.tmdb.org/t/p/w200/manorama.png", "deep_link": "manorama://content/{tmdb_id}", "web_url": "https://www.manoramamax.com/movie/{tmdb_id}"},
 }
 
 
@@ -900,182 +871,3 @@ def group_recommend(req: GroupRequest):
         results.append(rec_dict)
         
     return results
-
-
-# ── Watch Providers (India) ────────────────────────────────────
-@app.get("/api/watch-providers/{item_id:path}")
-def get_watch_providers(item_id: str, media: Optional[str] = Query(None, alias="type")):
-    """Get streaming providers for a movie/show in India."""
-    item_id = normalize_id(item_id)
-    row = find_local_row(item_id, media)
-    if row is not None:
-        media_type, title, year = row.get("media_type") or "movie", row["title"], _row_year(row)
-    else:
-        media_type, title, year = guess_media_type(item_id, media), "", ""
-
-    # Providers live on TMDB; TVmaze and Jikan titles go through their TMDB match.
-    tmdb_kind, raw_id = resolve_tmdb_ref(item_id, media_type, title, year)
-    if not tmdb_kind:
-        return {"results": {}, "providers": []}
-    url = f"{TMDB_BASE}/{tmdb_kind}/{raw_id}/watch/providers?api_key={TMDB_API_KEY}"
-    
-    try:
-        response = requests.get(url, timeout=10, verify=SSL_VERIFY)
-        data = response.json()
-    except:
-        return {"results": {}, "providers": []}
-    
-    # Extract India (IN) providers
-    in_data = data.get("results", {}).get("IN", {})
-    if not in_data:
-        return {"results": {}, "providers": []}
-    
-    # Parse different provider types
-    provider_types = {
-        "flatrate": "Subscription",
-        "rent": "Rent",
-        "buy": "Buy",
-        "ads": "Free with Ads",
-        "free": "Free"
-    }
-    
-    providers = []
-    for ptype, label in provider_types.items():
-        for p in in_data.get(ptype, []):
-            provider_id = p.get("provider_id")
-            if provider_id in INDIAN_PROVIDERS:
-                info = INDIAN_PROVIDERS[provider_id]
-                tmdb_id = raw_id if media_type == "movie" else raw_id
-                
-                # Generate deep links
-                web_url = info["web_url"].format(tmdb_id=tmdb_id)
-                deep_link = info["deep_link"].format(tmdb_id=tmdb_id)
-                
-                providers.append({
-                    "provider_id": provider_id,
-                    "name": info["name"],
-                    "logo": p.get("logo_path", info["logo"]),
-                    "type": label,
-                    "web_url": web_url,
-                    "deep_link": deep_link,
-                    "display_priority": p.get("display_priority", 999)
-                })
-    
-    # Sort by display priority
-    providers.sort(key=lambda x: x["display_priority"])
-    
-    return {
-        "results": in_data,
-        "providers": providers
-    }
-
-
-# ── Search Providers (Multi) ───────────────────────────────────
-@app.get("/api/search/providers")
-def search_providers(q: str, media_type: str = "movie"):
-    """Search for movies/shows and return their providers."""
-    url = f"{TMDB_BASE}/search/{media_type}?api_key={TMDB_API_KEY}&query={q}&language=en-US"
-    
-    try:
-        data = requests.get(url, timeout=10, verify=SSL_VERIFY).json()
-    except:
-        return []
-    
-    results = []
-    for item in data.get("results", [])[:10]:
-        item_id = f"tmdb_{item['id']}"
-        # We'll fetch providers client-side to avoid N+1 queries
-        results.append({
-            "id": item_id,
-            "title": item.get("title", item.get("name", "Unknown")),
-            "poster": f"{POSTER_BASE}{item['poster_path']}" if item.get("poster_path") else PLACEHOLDER,
-            "media_type": media_type
-        })
-    
-    return results
-
-
-# ── Authentication ───────────────────────────────────────────────
-@app.post("/api/auth/register", response_model=TokenResponse)
-def register(user_data: UserCreate):
-    """Register a new user."""
-    user = create_user(user_data.email, user_data.password, user_data.name)
-    token = create_token(user["id"], user["email"])
-    return {
-        "access_token": token,
-        "user": {
-            "id": user["id"],
-            "email": user["email"],
-            "name": user["name"],
-            "preferences": user["preferences"]
-        }
-    }
-
-@app.post("/api/auth/login", response_model=TokenResponse)
-def login(credentials: UserLogin):
-    """Login user."""
-    user = authenticate_user(credentials.email, credentials.password)
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    
-    # Try to load preferences from Supabase (cloud sync)
-    supabase_prefs = None
-    import asyncio
-    try:
-        supabase_prefs = asyncio.run(load_from_supabase(user["id"]))
-    except:
-        pass
-    
-    # Merge local + cloud preferences (cloud wins for subscriptions)
-    local_prefs = user.get("preferences", {})
-    if supabase_prefs:
-        merged_prefs = {**local_prefs, **supabase_prefs}
-        user["preferences"] = merged_prefs
-    
-    token = create_token(user["id"], user["email"])
-    return {
-        "access_token": token,
-        "user": {
-            "id": user["id"],
-            "email": user["email"],
-            "name": user["name"],
-            "preferences": user["preferences"]
-        }
-    }
-
-@app.get("/api/auth/me")
-def get_me(current_user: dict = Depends(get_current_user)):
-    """Get current user profile."""
-    return {
-        "id": current_user["id"],
-        "email": current_user["email"],
-        "name": current_user["name"],
-        "preferences": current_user.get("preferences", {})
-    }
-
-@app.put("/api/auth/preferences")
-def update_preferences(
-    prefs: UserPreferences,
-    current_user: dict = Depends(get_current_user)
-):
-    """Update user preferences (subscriptions, recent searches, etc.)."""
-    updated = update_user_preferences(current_user["email"], prefs.dict())
-    
-    # Sync to Supabase (cloud)
-    import asyncio
-    try:
-        asyncio.run(sync_to_supabase({**current_user, "preferences": updated}))
-    except:
-        pass
-    
-    return {"preferences": updated}
-
-@app.post("/api/auth/sync")
-def manual_sync(current_user: dict = Depends(get_current_user)):
-    """Manually trigger cloud sync."""
-    import asyncio
-    try:
-        result = asyncio.run(sync_to_supabase(current_user))
-        return {"synced": result}
-    except Exception as e:
-        return {"synced": False, "error": str(e)}

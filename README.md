@@ -76,9 +76,9 @@ CinemaTime aggregates data from three different sources into a unified FAISS ind
 ## ☁️ Deploying on Vercel (free)
 The frontend and backend deploy as two Vercel projects from this one repo:
 - **Frontend**: Root Directory `frontend`, with `NEXT_PUBLIC_API_URL` set to the backend's URL.
-- **Backend**: Root Directory `backend`. Vercel detects the FastAPI `app` in `main.py` and installs `requirements.txt`. Set `TMDB_API_KEY` (and optionally `YOUTUBE_API_KEY`, `JWT_SECRET`).
+- **Backend**: Root Directory `backend`. Vercel detects the FastAPI `app` in `main.py` and installs `requirements.txt`. Set `TMDB_API_KEY` (and optionally `YOUTUBE_API_KEY`).
 
-PyTorch doesn't fit in Vercel's 500 MB function limit, so free-text vibe search (`/api/search/vibe`) is unavailable there. Everything else, including vibe clusters, recommendations, group watch and trailers, works. Accounts are stored in `/tmp` on Vercel, so they don't survive a cold start.
+PyTorch doesn't fit in Vercel's 500 MB function limit, so free-text vibe search (`/api/search/vibe`) is unavailable there. Everything else, including vibe clusters, recommendations, group watch and trailers, works.
 
 ## 🧪 Testing & Evaluation
 The backend includes a Pytest suite, and a GitHub Action workflow automatically runs tests on push/PR to `main`.

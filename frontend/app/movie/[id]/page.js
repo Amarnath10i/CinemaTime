@@ -3,7 +3,6 @@ import { useState, useEffect, Suspense } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import { WhereToWatch } from "../../../components/WhereToWatch";
 import { MovieCard, idHues } from "../../../components/MovieCard";
 import { TrailerModal } from "../../../components/TrailerModal";
 import { youtubeThumb, youtubeSearchUrl } from "../../../components/TrailerPlayer";
@@ -224,11 +223,6 @@ function MovieDetailContent() {
           </div>
         </div>
       )}
-
-      {/* Where to Watch Section */}
-      <div className="px-6 md:px-12 mt-8">
-        <WhereToWatch itemId={id} mediaType={movie.media_type || type || "movie"} />
-      </div>
 
       {/* Recommendations Row */}
       {recommendations.length > 0 && (

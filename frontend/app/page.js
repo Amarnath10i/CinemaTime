@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { MovieCard } from "../components/MovieCard";
+import { EmptyState } from "../components/EmptyState";
 import { TrailerPlayer } from "../components/TrailerPlayer";
 import { TrailerModal } from "../components/TrailerModal";
 
@@ -187,17 +188,26 @@ function HomeContent() {
   const [trending, setTrending] = useState([]);
   const [categoryData, setCategoryData] = useState({});
   const [loading, setLoading] = useState(true);
+  const [serverDown, setServerDown] = useState(false);
   const searchParams = useSearchParams();
   const tab = searchParams.get("tab") || "all";
 
   useEffect(() => {
-    fetch("/api/trending")
-      .then((r) => r.json())
+    setLoading(true);
+    setServerDown(false);
+
+    const getJson = async (url) => {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`${res.status} from ${url}`);
+      return res.json();
+    };
+
+    const trendingRequest = getJson("/api/trending")
       .then((data) => {
         if (Array.isArray(data)) setTrending(data);
-        setLoading(false);
+        return true;
       })
-      .catch(() => setLoading(false));
+      .catch(() => false);
 
     let categories = ["Action", "Adventure", "Horror", "Thriller", "Romance", "Science Fiction", "Mystery", "Comedy"];
     
@@ -209,14 +219,15 @@ function HomeContent() {
 
     const fetchCategories = async () => {
       const data = {};
+      let reached = false;
       await Promise.all(
         categories.map(async (cat) => {
           try {
             // If anime, fetch a huge pool (200) because we will aggressively filter out non-animations locally
             const fetchLimit = tab === "anime" ? 200 : 40;
             const typeQuery = (tab !== "all" && tab !== "anime") ? `&media_type=${tab}` : "";
-            const res = await fetch(`/api/movies/category/${encodeURIComponent(cat)}?n=${fetchLimit}${typeQuery}`);
-            const json = await res.json();
+            const json = await getJson(`/api/movies/category/${encodeURIComponent(cat)}?n=${fetchLimit}${typeQuery}`);
+            reached = true;
             if (Array.isArray(json) && json.length > 0) {
               data[cat] = json;
             }
@@ -226,8 +237,15 @@ function HomeContent() {
         })
       );
       setCategoryData(data);
+      return reached;
     };
-    fetchCategories();
+
+    // Keep the skeleton up until both requests settle, so an empty trending
+    // list doesn't flash the "no content" state before the categories arrive.
+    Promise.all([trendingRequest, fetchCategories()]).then(([trendingOk, categoriesOk]) => {
+      setServerDown(!trendingOk && !categoriesOk);
+      setLoading(false);
+    });
   }, [tab]);
 
   const filteredTrending = tab === "all"
@@ -342,22 +360,7 @@ function HomeContent() {
             ))}
           </>
         ) : (
-          <div className="pt-24 text-center px-4 max-w-2xl mx-auto">
-            <h3 className="text-2xl font-bold text-white mb-4">No content available for this category.</h3>
-            <p className="text-gray-400 text-lg mb-8">
-              It looks like your local database doesn&apos;t have any {tab === 'tv' ? 'TV Shows' : tab === 'anime' ? 'Anime' : 'items'} yet!
-            </p>
-            <div className="bg-white/5 border border-white/10 rounded-xl p-6 text-left inline-block">
-              <p className="text-gray-300 font-medium mb-3">To fix this, run the dataset builder in your terminal:</p>
-              <code className="block bg-black/50 text-[#00b4ff] p-4 rounded-lg font-mono text-sm shadow-inner">
-                cd backend<br/>
-                python build_dataset.py
-              </code>
-              <p className="text-gray-400 text-sm mt-4">
-                This will automatically fetch thousands of Movies, TV Shows, and Anime directly from TMDB and rebuild your search index!
-              </p>
-            </div>
-          </div>
+          <EmptyState serverDown={serverDown} label={tab === "tv" ? "TV shows" : tab === "anime" ? "anime" : tab === "movie" ? "movies" : "titles"} />
         )}
       </div>
 

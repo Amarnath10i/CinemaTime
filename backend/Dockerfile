@@ -11,7 +11,7 @@ COPY --chown=user ./requirements.txt ./requirements-ml.txt /code/
 # CPU-only torch (for sentence-transformers) keeps the image several GB smaller.
 RUN pip install --no-cache-dir --upgrade --extra-index-url https://download.pytorch.org/whl/cpu -r /code/requirements-ml.txt
 
-# Copy all backend files to the container, owned by the runtime user so auth can write users.json
+# Copy all backend files to the container, owned by the runtime user
 COPY --chown=user . /code/
 
 USER user
