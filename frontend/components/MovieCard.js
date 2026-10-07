@@ -3,6 +3,13 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 
+// Stable gradient hues for posterless cards; ids are strings like "tmdb_550".
+export function idHues(id) {
+  let h = 0;
+  for (const ch of String(id)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return [(h * 137) % 360, (h * 97) % 360];
+}
+
 export function MediaBadge({ type }) {
   const config = {
     movie: { label: "MOVIE", bg: "bg-blue-500/20 text-blue-400 border-blue-500/30" },
@@ -22,8 +29,7 @@ export function MovieCard({ movie, index: i, priority = false }) {
   const isPlaceholder = !movie.poster || movie.poster.includes("placeholder");
   const poster = isPlaceholder || imageError ? null : movie.poster;
   
-  const hue1 = (movie.id * 137) % 360;
-  const hue2 = (movie.id * 97) % 360;
+  const [hue1, hue2] = idHues(movie.id);
 
   return (
     <motion.div

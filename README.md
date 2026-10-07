@@ -19,6 +19,15 @@ Can't decide what to watch with friends? Group Watch allows up to 5 people to in
 ### 5. 🔮 Vibe Clusters (Mood Browsing)
 The offline `build_dataset.py` pipeline runs k-Means clustering over the semantic embeddings, automatically categorizing thousands of movies and shows into browsable "Vibe" clusters (e.g., "Dark Thrillers", "Cozy Romances").
 
+### 6. 🎬 Trailers for Everything
+Every movie, TV show and anime gets a trailer, teaser, promo or clip. [`backend/trailers.py`](backend/trailers.py) tries, in order:
+1. **TMDB videos**, in English and the title's original language; TV shows with none fall back to their seasons' videos.
+2. **Jikan** trailers, PVs/teasers/CMs and opening/ending videos for MyAnimeList anime.
+3. **TMDB cross-references**: TVmaze shows by IMDb/TheTVDB id, Jikan anime by title.
+4. **YouTube search**, keeping only results that name the title. It uses the YouTube Data API when `YOUTUBE_API_KEY` is set, otherwise the public results page.
+
+`GET /api/trailers/{id}?type=movie|tv|anime` returns just the videos and is cached in memory. In the browser, the player skips any video YouTube won't embed and moves on to the next.
+
 ## 🛠️ Multi-API Architecture
 
 CinemaTime aggregates data from three different sources into a unified FAISS index:
@@ -35,9 +44,11 @@ CinemaTime aggregates data from three different sources into a unified FAISS ind
 ## ⚙️ Running Locally
 
 1. **Environment Setup**
-   Create a `.env` file in the root directory:
+   Create a `.env` file in the root (or `backend/`) directory:
    ```env
    TMDB_API_KEY=your_api_key_here
+   # Optional: official YouTube search for the trailer fallback (see below)
+   YOUTUBE_API_KEY=
    DISABLE_SSL_VERIFY=false
    ```
 

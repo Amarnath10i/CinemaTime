@@ -33,9 +33,9 @@ export default function CategoryPage({ params }) {
           if (tab === "anime") {
             filtered = data.filter(m => {
               const genres = (m.genres || "").toLowerCase();
-              const title = (m.title || "").toLowerCase();
-              return genres.includes("animation") || genres.includes("16") ||
-                title.match(/anime|naruto|one piece|dragon ball|jujutsu|demon slayer|attack on titan|bleach|my hero/);
+              if (m.media_type === "anime") return true;
+              // Trending items carry original_language; catalogue items don't.
+              return genres.includes("animation") && (!m.original_language || m.original_language === "ja");
             });
           } else if (tab !== "all") {
             filtered = data.filter(m => m.media_type === tab);

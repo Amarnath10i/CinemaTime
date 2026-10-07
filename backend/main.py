@@ -1,4 +1,6 @@
 import pickle
+import re
+import sys
 import numpy as np
 import faiss
 import requests
@@ -9,6 +11,25 @@ from typing import Optional
 import os
 import pandas as pd
 from pydantic import BaseModel
+
+# Windows consoles default to cp1252, which can't print the emoji in our logs;
+# without this the startup print raises and the catalogue loads empty.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
+# Load .env (backend/ first, then the repo root) before anything reads the environment.
+try:
+    from dotenv import load_dotenv
+    _here = os.path.dirname(os.path.abspath(__file__))
+    load_dotenv(os.path.join(_here, ".env"))
+    load_dotenv(os.path.join(_here, "..", ".env"))
+except ImportError:
+    pass
+
+from trailers import resolve_media, resolve_trailers, resolve_tmdb_ref
 
 # Auth module
 from auth.auth import (
@@ -77,7 +98,19 @@ except Exception:
 
 TMDB_BASE = "https://api.themoviedb.org/3"
 POSTER_BASE = "https://image.tmdb.org/t/p/w500"
+BACKDROP_BASE = "https://image.tmdb.org/t/p/original"
 PLACEHOLDER = "https://via.placeholder.com/500x750?text=No+Poster"
+
+# TMDB genre ids (movie and TV lists combined) for payloads that only carry genre_ids.
+TMDB_GENRES = {
+    28: "Action", 12: "Adventure", 16: "Animation", 35: "Comedy", 80: "Crime",
+    99: "Documentary", 18: "Drama", 10751: "Family", 14: "Fantasy", 36: "History",
+    27: "Horror", 10402: "Music", 9648: "Mystery", 10749: "Romance",
+    878: "Science Fiction", 10770: "TV Movie", 53: "Thriller", 10752: "War",
+    37: "Western", 10759: "Action & Adventure", 10762: "Kids", 10763: "News",
+    10764: "Reality", 10765: "Sci-Fi & Fantasy", 10766: "Soap", 10767: "Talk",
+    10768: "War & Politics",
+}
 
 # India OTT Provider Configuration
 INDIAN_PROVIDERS = {
@@ -116,90 +149,81 @@ def safe_get(row, col, default=""):
         return default
 
 
-def fetch_media_details(item_id: str, media_type: str = "movie"):
-    """Fetch details from TMDB, TVmaze, or Jikan based on prefix."""
-    if item_id.startswith("tmdb_"):
-        raw_id = item_id.replace("tmdb_", "")
-        url = f"{TMDB_BASE}/{media_type}/{raw_id}?api_key={TMDB_API_KEY}&append_to_response=videos,credits&language=en-US"
-        try:
-            return requests.get(url, timeout=5, verify=SSL_VERIFY).json()
-        except:
-            return {}
-            
-    elif item_id.startswith("tvmaze_"):
-        raw_id = item_id.replace("tvmaze_", "")
-        url = f"https://api.tvmaze.com/shows/{raw_id}?embed=cast"
-        try:
-            return requests.get(url, timeout=5).json()
-        except:
-            return {}
-            
-    elif item_id.startswith("jikan_"):
-        raw_id = item_id.replace("jikan_", "")
-        url = f"https://api.jikan.moe/v4/anime/{raw_id}/full"
-        try:
-            data = requests.get(url, timeout=5).json()
-            return data.get("data", {}) if isinstance(data, dict) else {}
-        except:
-            return {}
-            
-    return {}
+def normalize_id(item_id: str) -> str:
+    """Old integer ids are TMDB ids."""
+    return f"tmdb_{item_id}" if item_id.isdigit() else item_id
 
 
-def get_poster(row, tmdb_data=None):
+def guess_media_type(item_id: str, type_hint: Optional[str] = None) -> str:
+    if type_hint in ("movie", "tv", "anime"):
+        return type_hint
+    if item_id.startswith("tvmaze_"):
+        return "tv"
+    if item_id.startswith("jikan_"):
+        return "anime"
+    return "movie"
+
+
+def find_local_row(item_id: str, type_hint: Optional[str] = None):
+    """The catalogue row for an id, or None.
+
+    TMDB movie and TV ids overlap (tmdb_1399 is both a movie and Game of
+    Thrones), so a row whose kind contradicts the caller's movie/tv hint is
+    treated as a different title.
+    """
+    if movies.empty:
+        return None
+    match = movies[movies["id"] == item_id]
+    if match.empty:
+        return None
+    row = match.iloc[0]
+    local_type = row.get("media_type", "movie")
+    if (
+        item_id.startswith("tmdb_")
+        and type_hint in ("movie", "tv")
+        and local_type in ("movie", "tv")
+        and local_type != type_hint
+    ):
+        return None
+    return row
+
+
+def _absolute(path, base):
+    if not path:
+        return ""
+    return path if str(path).startswith("http") else f"{base}{path}"
+
+
+def get_poster(row, details=None):
     pp = ""
     try:
         pp = row.get("poster_path", "") if hasattr(row, "get") else getattr(row, "poster_path", "")
     except Exception:
         pass
     if pp:
-        return pp if pp.startswith("http") else f"{POSTER_BASE}{pp}"
-    if tmdb_data and tmdb_data.get("poster_path"):
-        tp = tmdb_data["poster_path"]
-        return tp if tp.startswith("http") else f"{POSTER_BASE}{tp}"
+        return _absolute(pp, POSTER_BASE)
+    if details and details.get("poster_path"):
+        return _absolute(details["poster_path"], POSTER_BASE)
     return PLACEHOLDER
 
 
-def get_backdrop(row, tmdb_data=None):
-    bp = ""
+def get_backdrop(row, details=None):
+    bp = pp = ""
     try:
         bp = row.get("backdrop_path", "") if hasattr(row, "get") else getattr(row, "backdrop_path", "")
+        pp = row.get("poster_path", "") if hasattr(row, "get") else getattr(row, "poster_path", "")
     except Exception:
         pass
-    if bp:
-        return f"https://image.tmdb.org/t/p/original{bp}"
-    if tmdb_data and tmdb_data.get("backdrop_path"):
-        return f"https://image.tmdb.org/t/p/original{tmdb_data['backdrop_path']}"
-    return ""
+    details_bp = (details or {}).get("backdrop_path")
+    # TVmaze and Jikan rows reuse the portrait poster as their backdrop; a
+    # landscape TMDB backdrop looks far better when we have one.
+    if details_bp and (not bp or bp == pp):
+        return _absolute(details_bp, BACKDROP_BASE)
+    return _absolute(bp, BACKDROP_BASE)
 
-
-def get_trailers(media_data):
-    # Handle Jikan anime trailers
-    if "trailer" in media_data and "youtube_id" in media_data["trailer"]:
-        yt_id = media_data["trailer"]["youtube_id"]
-        if yt_id:
-            return [{"name": "Trailer", "key": yt_id, "site": "YouTube", "type": "Trailer"}]
-            
-    # Handle TMDB videos
-    videos = media_data.get("videos", {}).get("results", [])
-    trailers = []
-    
-    # Priority: Trailer > Teaser > Clip > Featurette
-    priority = {"Trailer": 1, "Teaser": 2, "Clip": 3, "Featurette": 4}
-    
-    for v in videos:
-        if v.get("site") == "YouTube" and v.get("type") in priority:
-            name_lower = v.get("name", "").lower()
-            # Still filter out vertical videos which ruin UX
-            if any(word in name_lower for word in ["short", "vertical", "tiktok", "reel"]):
-                continue
-            trailers.append({"name": v["name"], "key": v["key"], "site": v["site"], "type": v["type"]})
-            
-    trailers.sort(key=lambda x: priority.get(x["type"], 99))
-    return trailers
 
 def get_cast(tmdb_data, limit=10):
-    cast = tmdb_data.get("credits", {}).get("cast", [])
+    cast = (tmdb_data or {}).get("credits", {}).get("cast", [])
     return [
         {
             "id": c["id"],
@@ -211,31 +235,97 @@ def get_cast(tmdb_data, limit=10):
     ]
 
 
-def row_to_dict(row, tmdb_data=None, full=False):
+def get_runtime(details):
+    """Minutes, from TMDB (movie or TV), TVmaze or Jikan payloads."""
+    details = details or {}
+    if details.get("runtime"):
+        return int(details["runtime"])
+    if details.get("episode_run_time"):
+        return int(details["episode_run_time"][0])
+    if details.get("averageRuntime"):
+        return int(details["averageRuntime"])
+    duration = details.get("duration")  # Jikan: "24 min per ep", "1 hr 47 min"
+    if isinstance(duration, str):
+        hours = re.search(r"(\d+)\s*hr", duration)
+        mins = re.search(r"(\d+)\s*min", duration)
+        total = (int(hours.group(1)) * 60 if hours else 0) + (int(mins.group(1)) if mins else 0)
+        if total:
+            return total
+    return 0
+
+
+def row_to_dict(row, bundle=None):
+    """Card/detail payload for a catalogue row; pass a resolve_media bundle for the full detail view."""
     item_id = str(getattr(row, "id", ""))
     media_type = getattr(row, "media_type", "movie") if hasattr(row, "media_type") else "movie"
-
-    if full and tmdb_data is None:
-        tmdb_data = fetch_media_details(item_id, media_type)
-    if tmdb_data is None:
-        tmdb_data = {}
+    bundle = bundle or {}
+    details = bundle.get("tmdb") or bundle.get("data") or {}
 
     return {
         "id": item_id,
         "title": getattr(row, "title", ""),
-        "overview": getattr(row, "overview", tmdb_data.get("overview", "")),
+        "overview": getattr(row, "overview", details.get("overview", "")),
         "genres": getattr(row, "genres_display", "") if hasattr(row, "genres_display") else "",
         "cast": getattr(row, "cast_display", "") if hasattr(row, "cast_display") else "",
         "rating": float(getattr(row, "vote_average", 0)),
-        "poster": get_poster(row, tmdb_data),
-        "backdrop": get_backdrop(row, tmdb_data),
-        "release_date": getattr(row, "release_date", tmdb_data.get("release_date", "")) if hasattr(row, "release_date") else tmdb_data.get("release_date", ""),
-        "runtime": tmdb_data.get("runtime", 0),
-        "tagline": tmdb_data.get("tagline", ""),
+        "poster": get_poster(row, details),
+        "backdrop": get_backdrop(row, details),
+        "release_date": getattr(row, "release_date", details.get("release_date", "")) if hasattr(row, "release_date") else details.get("release_date", ""),
+        "runtime": get_runtime(bundle.get("tmdb")) or get_runtime(bundle.get("data")),
+        "tagline": details.get("tagline", ""),
         "media_type": media_type,
-        "trailers": get_trailers(tmdb_data) if full else [],
-        "cast_details": get_cast(tmdb_data) if full else [],
+        "trailers": bundle.get("trailers", []),
+        "cast_details": get_cast(bundle.get("tmdb")),
     }
+
+
+def live_item_dict(item_id: str, media_type: str, bundle: dict):
+    """Detail payload for a title that isn't in the local catalogue (e.g. from trending)."""
+    data, tmdb = bundle["data"], bundle["tmdb"]
+    title = (
+        data.get("title_english") or data.get("title") or data.get("name")
+        or tmdb.get("title") or tmdb.get("name") or ""
+    )
+    poster = (
+        _absolute(tmdb.get("poster_path"), POSTER_BASE)
+        or (data.get("image") or {}).get("original")
+        or ((data.get("images") or {}).get("jpg") or {}).get("large_image_url")
+        or PLACEHOLDER
+    )
+    genres = data.get("genres") or tmdb.get("genres") or []
+    genres = [g["name"] if isinstance(g, dict) else str(g) for g in genres]
+    if "vote_average" in data:
+        rating = data["vote_average"]
+    elif isinstance(data.get("rating"), dict):
+        rating = data["rating"].get("average")
+    else:
+        rating = data.get("score")
+    release = (
+        data.get("release_date") or data.get("first_air_date") or data.get("premiered")
+        or ((data.get("aired") or {}).get("from") or "")[:10]
+    )
+    overview = data.get("overview") or data.get("synopsis") or re.sub(r"<[^>]+>", "", data.get("summary") or "")
+
+    return {
+        "id": item_id,
+        "title": title,
+        "overview": overview,
+        "genres": ", ".join(genres),
+        "cast": "",
+        "rating": float(rating or 0),
+        "poster": poster,
+        "backdrop": _absolute(tmdb.get("backdrop_path"), BACKDROP_BASE),
+        "release_date": release or "",
+        "runtime": get_runtime(tmdb) or get_runtime(data),
+        "tagline": tmdb.get("tagline", ""),
+        "media_type": media_type,
+        "trailers": bundle["trailers"],
+        "cast_details": get_cast(tmdb),
+    }
+
+
+def _row_year(row):
+    return str(row.get("release_date") or "")[:4]
 
 
 # ── Routes ─────────────────────────────────────────────────
@@ -248,11 +338,11 @@ def movie_category(genre: str, n: int = 20, media_type: Optional[str] = Query(No
         mask = movies["genres"].str.contains(genre, case=False, na=False)
     else:
         return []
-    
+
     filtered = movies[mask]
     if media_type and media_type != "all" and "media_type" in filtered.columns:
         filtered = filtered[filtered["media_type"] == media_type]
-        
+
     subset = filtered.head(n)
     results = []
     for _, row in subset.iterrows():
@@ -275,51 +365,44 @@ def movie_titles(q: Optional[str] = Query(None)):
 
 
 @app.get("/api/movie/{item_id:path}")
-def movie_detail(item_id: str):
-    # Backward compatibility for old integer IDs hitting this route directly
-    if item_id.isdigit():
-        item_id = f"tmdb_{item_id}"
-        
-    match = movies[movies["id"] == item_id]
-    
-    if match.empty:
-        # Movie not in local DB — fetch live
-        mt_guess = "tv" if "tvmaze" in item_id else "anime" if "jikan" in item_id else "movie"
-        media_data = fetch_media_details(item_id, mt_guess)
-        if not media_data:
+def movie_detail(item_id: str, media: Optional[str] = Query(None, alias="type")):
+    item_id = normalize_id(item_id)
+    row = find_local_row(item_id, media)
+
+    if row is None:
+        # Not in the local catalogue (trending, cast credits, search) — fetch live.
+        media_type = guess_media_type(item_id, media)
+        bundle = resolve_media(item_id, media_type)
+        if not bundle["data"] and not bundle["tmdb"]:
             return {"error": "Not found"}
-        
-        title = media_data.get("title", media_data.get("name", media_data.get("title_english", "")))
-        poster_path = media_data.get("poster_path", media_data.get("image", {}).get("original", ""))
-        backdrop_path = media_data.get("backdrop_path", "")
-        
-        genres_list = media_data.get("genres", [])
-        if genres_list and isinstance(genres_list[0], dict):
-            genres_str = ", ".join([g["name"] for g in genres_list])
-        else:
-            genres_str = ", ".join(genres_list)
-        
-        return {
-            "id": item_id,
-            "title": title,
-            "overview": media_data.get("overview", media_data.get("summary", media_data.get("synopsis", ""))),
-            "genres": genres_str,
-            "cast": "",
-            "rating": media_data.get("vote_average", media_data.get("rating", {}).get("average", media_data.get("score", 0))),
-            "poster": f"{POSTER_BASE}{poster_path}" if poster_path and not poster_path.startswith("http") else poster_path or PLACEHOLDER,
-            "backdrop": f"https://image.tmdb.org/t/p/original{backdrop_path}" if backdrop_path else "",
-            "release_date": media_data.get("release_date", media_data.get("first_air_date", media_data.get("premiered", ""))),
-            "runtime": media_data.get("runtime", 0),
-            "tagline": media_data.get("tagline", ""),
-            "media_type": mt_guess,
-            "trailers": get_trailers(media_data),
-            "cast_details": get_cast(media_data),
-        }
-        
-    row = match.iloc[0]
-    media_type = row.get("media_type") if "media_type" in movies.columns else "movie"
-    media_data = fetch_media_details(item_id, media_type)
-    return row_to_dict(row, media_data, full=True)
+        return live_item_dict(item_id, media_type, bundle)
+
+    media_type = row.get("media_type") or "movie"
+    bundle = resolve_media(item_id, media_type, title=row["title"], year=_row_year(row))
+    return row_to_dict(row, bundle)
+
+
+@app.get("/api/trailers/{item_id:path}")
+def item_trailers(
+    item_id: str,
+    media: Optional[str] = Query(None, alias="type"),
+    title: str = "",
+    year: str = "",
+):
+    """Just the playable videos for a title — lighter than /api/movie, and cached."""
+    item_id = normalize_id(item_id)
+    row = find_local_row(item_id, media)
+    if row is not None:
+        media_type = row.get("media_type") or "movie"
+        title = title or row["title"]
+        year = year or _row_year(row)
+    else:
+        media_type = guess_media_type(item_id, media)
+    return {
+        "id": item_id,
+        "media_type": media_type,
+        "trailers": resolve_trailers(item_id, media_type, title, year),
+    }
 
 
 @app.get("/api/recommend/{item_id:path}")
@@ -431,7 +514,7 @@ def cast_movies(person_id: int):
         for m in cast_list[:24]:
             poster = f"{POSTER_BASE}{m['poster_path']}" if m.get("poster_path") else PLACEHOLDER
             results.append({
-                "id": m["id"],
+                "id": f"tmdb_{m['id']}",
                 "title": m.get("title", m.get("name", "Unknown")),
                 "poster": poster,
                 "rating": m.get("vote_average", 0),
@@ -493,7 +576,7 @@ def assistant_chat(req: ChatRequest):
                 for r in discover_data.get("results", [])[:15]:
                     poster = f"{POSTER_BASE}{r['poster_path']}" if r.get("poster_path") else PLACEHOLDER
                     results.append({
-                        "id": r["id"],
+                        "id": f"tmdb_{r['id']}",
                         "title": r.get("title", r.get("name", "Unknown")),
                         "poster": poster,
                         "rating": r.get("vote_average", 0),
@@ -532,7 +615,7 @@ def assistant_chat(req: ChatRequest):
             if r.get("media_type") in ("movie", "tv"):
                 poster = f"{POSTER_BASE}{r['poster_path']}" if r.get("poster_path") else PLACEHOLDER
                 results.append({
-                    "id": r["id"],
+                    "id": f"tmdb_{r['id']}",
                     "title": r.get("title", r.get("name", "Unknown")),
                     "poster": poster,
                     "rating": r.get("vote_average", 0),
@@ -557,21 +640,23 @@ def trending():
             url = f"{TMDB_BASE}/trending/all/week?api_key={TMDB_API_KEY}&language=en-US&page={page}"
             data = requests.get(url, timeout=5, verify=SSL_VERIFY).json()
             for r in data.get("results", []):
-                if r["id"] in seen_ids:
+                # trending/all also lists people, which have no detail page
+                if r.get("media_type") not in ("movie", "tv") or r["id"] in seen_ids:
                     continue
                 seen_ids.add(r["id"])
                 poster = f"{POSTER_BASE}{r['poster_path']}" if r.get("poster_path") else PLACEHOLDER
-                backdrop = f"https://image.tmdb.org/t/p/original{r['backdrop_path']}" if r.get("backdrop_path") else ""
+                backdrop = f"{BACKDROP_BASE}{r['backdrop_path']}" if r.get("backdrop_path") else ""
                 results.append({
-                    "id": r["id"],
+                    "id": f"tmdb_{r['id']}",
                     "title": r.get("title", r.get("name", "Unknown")),
                     "poster": poster,
                     "backdrop": backdrop,
                     "overview": r.get("overview", ""),
                     "rating": r.get("vote_average", 0),
                     "release_date": r.get("release_date", r.get("first_air_date", "")),
-                    "media_type": r.get("media_type", "movie"),
-                    "genres": ", ".join([str(g) for g in r.get("genre_ids", [])]),
+                    "media_type": r["media_type"],
+                    "genres": ", ".join(TMDB_GENRES[g] for g in r.get("genre_ids", []) if g in TMDB_GENRES),
+                    "original_language": r.get("original_language", ""),
                 })
         return results
     except Exception as e:
@@ -819,25 +904,20 @@ def group_recommend(req: GroupRequest):
 
 # ── Watch Providers (India) ────────────────────────────────────
 @app.get("/api/watch-providers/{item_id:path}")
-def get_watch_providers(item_id: str):
+def get_watch_providers(item_id: str, media: Optional[str] = Query(None, alias="type")):
     """Get streaming providers for a movie/show in India."""
-    if item_id.isdigit():
-        item_id = f"tmdb_{item_id}"
-    
-    # Determine media type
-    mt_guess = "tv" if "tvmaze" in item_id else "anime" if "jikan" in item_id else "movie"
-    
-    # Try to get from local DB first
-    match = movies[movies["id"] == item_id]
-    if not match.empty:
-        row = match.iloc[0]
-        media_type = row.get("media_type") if "media_type" in movies.columns else "movie"
+    item_id = normalize_id(item_id)
+    row = find_local_row(item_id, media)
+    if row is not None:
+        media_type, title, year = row.get("media_type") or "movie", row["title"], _row_year(row)
     else:
-        media_type = mt_guess
-    
-    # Fetch from TMDB
-    raw_id = item_id.replace("tmdb_", "").replace("tvmaze_", "").replace("jikan_", "")
-    url = f"{TMDB_BASE}/{media_type}/{raw_id}/watch/providers?api_key={TMDB_API_KEY}"
+        media_type, title, year = guess_media_type(item_id, media), "", ""
+
+    # Providers live on TMDB; TVmaze and Jikan titles go through their TMDB match.
+    tmdb_kind, raw_id = resolve_tmdb_ref(item_id, media_type, title, year)
+    if not tmdb_kind:
+        return {"results": {}, "providers": []}
+    url = f"{TMDB_BASE}/{tmdb_kind}/{raw_id}/watch/providers?api_key={TMDB_API_KEY}"
     
     try:
         response = requests.get(url, timeout=10, verify=SSL_VERIFY)

@@ -15,7 +15,7 @@ export function WhereToWatch({ itemId, mediaType = "movie" }) {
     const fetchProviders = async () => {
       setLoading(true);
       try {
-        const res = await fetch(`/api/watch-providers/${itemId}`);
+        const res = await fetch(`/api/watch-providers/${itemId}?type=${encodeURIComponent(mediaType)}`);
         const data = await res.json();
         if (data.providers) {
           setProviders(data.providers);
@@ -28,7 +28,7 @@ export function WhereToWatch({ itemId, mediaType = "movie" }) {
     };
 
     fetchProviders();
-  }, [itemId]);
+  }, [itemId, mediaType]);
 
   // Filter providers based on subscription status
   const filteredProviders = providers.filter((p) => {

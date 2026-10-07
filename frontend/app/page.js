@@ -4,76 +4,70 @@ import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { MovieCard } from "../components/MovieCard";
+import { TrailerPlayer } from "../components/TrailerPlayer";
+import { TrailerModal } from "../components/TrailerModal";
 
 /* ── Hero Carousel ─────────────────────────────── */
 function HeroCarousel({ items }) {
   const [current, setCurrent] = useState(0);
-  const [activeDetails, setActiveDetails] = useState(null);
+  const [videos, setVideos] = useState([]);
   const [showTrailer, setShowTrailer] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
-  const iframeRef = useRef(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const playerRef = useRef(null);
+
+  const slideCount = Math.min(items?.length || 0, 5);
+  const baseMovie = slideCount ? items[current % slideCount] : null;
 
   const toggleMute = () => {
-    if (iframeRef.current && iframeRef.current.contentWindow) {
-      const action = isMuted ? 'unMute' : 'mute';
-      iframeRef.current.contentWindow.postMessage(`{"event":"command","func":"${action}","args":""}`, '*');
-      setIsMuted(!isMuted);
-    }
+    if (isMuted) playerRef.current?.unMute();
+    else playerRef.current?.mute();
+    setIsMuted(!isMuted);
   };
 
-  // Rotate carousel every 20 seconds
+  // Rotate carousel every 20 seconds (paused while the full player is open)
   useEffect(() => {
-    if (!items || items.length === 0) return;
+    if (!slideCount || modalOpen) return;
     const interval = setInterval(() => {
-      setCurrent((c) => (c + 1) % Math.min(items.length, 5));
+      setCurrent((c) => (c + 1) % slideCount);
     }, 20000);
     return () => clearInterval(interval);
-  }, [items]);
+  }, [slideCount, modalOpen]);
 
-  // Fetch trailer/backdrop for the active slide
+  // Fetch trailers for the active slide
   useEffect(() => {
-    if (!items || items.length === 0) return;
-    const movie = items[current];
-    setActiveDetails(null); // Clear previous trailer while fetching
-    setShowTrailer(false); // Reset trailer view
-    fetch(`/api/movie/${movie.id}`)
-      .then(r => r.json())
-      .then(data => {
-        if (!data.error) setActiveDetails(data);
+    if (!baseMovie) return;
+    let cancelled = false;
+    setVideos([]);
+    setShowTrailer(false);
+    const params = new URLSearchParams({
+      type: baseMovie.media_type || "",
+      title: baseMovie.title || "",
+      year: (baseMovie.release_date || "").slice(0, 4),
+    });
+    fetch(`/api/trailers/${baseMovie.id}?${params}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled && Array.isArray(data.trailers)) setVideos(data.trailers);
       })
-      .catch(() => setActiveDetails(null));
-  }, [current, items]);
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [baseMovie?.id, baseMovie?.media_type]);
 
-  // Trigger trailer fade-in after 4 seconds if trailer is available
+  // Fade the trailer in after 4 seconds; the player starts muted underneath the backdrop
   useEffect(() => {
-    let timer;
-    if (activeDetails && activeDetails.trailers && activeDetails.trailers.length > 0) {
-      const trailerKey = activeDetails.trailers[0].key;
-      
-      // Check if video is deleted/private by loading its thumbnail
-      const img = new Image();
-      img.src = `https://img.youtube.com/vi/${trailerKey}/mqdefault.jpg`;
-      
-      img.onload = () => {
-        // YouTube returns a 120x90 placeholder image for unavailable videos
-        if (img.width !== 120) {
-          timer = setTimeout(() => {
-            setShowTrailer(true);
-          }, 4000);
-        }
-      };
-      // If it 404s, it's also unavailable (doesn't trigger onload)
-    }
+    if (!videos.length) return;
+    const timer = setTimeout(() => setShowTrailer(true), 4000);
     return () => clearTimeout(timer);
-  }, [activeDetails]);
+  }, [videos]);
 
-  if (!items || items.length === 0) return <div className="h-[85vh] bg-dark-900 animate-pulse" />;
+  if (!baseMovie) return <div className="h-[85vh] bg-dark-900 animate-pulse" />;
 
-  const baseMovie = items[current];
-  const movie = activeDetails || baseMovie;
-  const trailer = movie.trailers?.[0];
-  const backdrop = movie.backdrop || baseMovie.backdrop || baseMovie.poster;
+  const backdrop = baseMovie.backdrop || baseMovie.poster;
   const isPlaceholder = !backdrop || backdrop.includes("placeholder");
+  const playing = showTrailer && !modalOpen;
 
   return (
     <div className="relative h-[85vh] w-full overflow-hidden bg-dark-900">
@@ -88,35 +82,40 @@ function HeroCarousel({ items }) {
         >
           {/* Backdrop Image - fades out when trailer shows */}
           {!isPlaceholder && (
-            <img 
-              src={backdrop} 
-              alt={movie.title} 
-              className={`absolute inset-0 w-full h-full object-cover object-top transition-opacity duration-1000 ${showTrailer ? 'opacity-0' : 'opacity-60'}`} 
+            <img
+              src={backdrop}
+              alt={baseMovie.title}
+              className={`absolute inset-0 w-full h-full object-cover object-top transition-opacity duration-1000 ${playing ? 'opacity-0' : 'opacity-60'}`}
             />
           )}
           {isPlaceholder && <div className="absolute inset-0 w-full h-full bg-dark-800" />}
 
           {/* Trailer Video - fades in when showTrailer is true, completely bright */}
-          {trailer && (
-            <div className={`absolute inset-0 w-full h-full overflow-hidden transition-opacity duration-1000 ${showTrailer ? 'opacity-100' : 'opacity-0'}`}>
-              <iframe
-                ref={iframeRef}
-                src={`https://www.youtube.com/embed/${trailer.key}?autoplay=1&mute=${isMuted ? 1 : 0}&controls=0&showinfo=0&rel=0&loop=1&playlist=${trailer.key}&enablejsapi=1&origin=${typeof window !== 'undefined' ? window.location.origin : ''}&iv_load_policy=3&modestbranding=1&playsinline=1&disablekb=1&fs=0&cc_load_policy=0&annotation=0`}
-                allow="autoplay; encrypted-media"
+          {videos.length > 0 && !modalOpen && (
+            <div className={`absolute inset-0 w-full h-full overflow-hidden transition-opacity duration-1000 ${playing ? 'opacity-100' : 'opacity-0'}`}>
+              <TrailerPlayer
+                ref={playerRef}
+                videos={videos}
+                background
+                muted={isMuted}
+                onUnavailable={() => {
+                  setShowTrailer(false);
+                  setVideos([]);
+                }}
                 className="absolute top-1/2 left-1/2 w-[100vw] h-[56.25vw] min-h-[85vh] min-w-[151.11vh] -translate-x-1/2 -translate-y-1/2 pointer-events-none"
               />
               {/* Transparent overlay to block all clicks from reaching YouTube */}
               <div className="absolute inset-0 z-10" />
             </div>
           )}
-          
+
           {/* Gradients fade out completely to 0% so video is 100% bright */}
-          <div className={`absolute inset-0 bg-gradient-to-t from-dark-900 via-dark-900/40 to-transparent transition-opacity duration-1000 ${showTrailer ? 'opacity-0' : 'opacity-100'}`} />
-          <div className={`absolute inset-0 bg-gradient-to-r from-dark-900 via-dark-900/60 to-transparent transition-opacity duration-1000 ${showTrailer ? 'opacity-0' : 'opacity-100'}`} />
+          <div className={`absolute inset-0 bg-gradient-to-t from-dark-900 via-dark-900/40 to-transparent transition-opacity duration-1000 ${playing ? 'opacity-0' : 'opacity-100'}`} />
+          <div className={`absolute inset-0 bg-gradient-to-r from-dark-900 via-dark-900/60 to-transparent transition-opacity duration-1000 ${playing ? 'opacity-0' : 'opacity-100'}`} />
         </motion.div>
       </AnimatePresence>
 
-      <div className="absolute inset-0 flex items-center">
+      <div className="absolute inset-0 flex items-center z-20">
         <div className="px-6 md:px-12 w-full">
           <motion.div
             key={`text-${baseMovie.id}`}
@@ -124,30 +123,40 @@ function HeroCarousel({ items }) {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3, duration: 0.8 }}
           >
-            <div className={`transition-opacity duration-1000 ${showTrailer ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+            <div className={`transition-opacity duration-1000 ${playing ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
               <div className="mb-4">
                 <span className="text-[10px] font-bold px-3 py-1 rounded-sm border bg-blue-500/20 text-blue-400 border-blue-500/30 uppercase tracking-[0.2em]">
                   {baseMovie.media_type || "movie"}
                 </span>
               </div>
-              
+
               <h1 className="font-black tracking-tighter uppercase font-outfit leading-none drop-shadow-lg text-white max-w-4xl line-clamp-2 text-5xl md:text-8xl mb-8">
-                {movie.title || baseMovie.title}
+                {baseMovie.title}
               </h1>
-              
-              <div className="flex gap-4">
-                <Link href={`/movie/${baseMovie.id}?type=${baseMovie.media_type}`}>
-                  <button className="bg-white text-black px-8 py-3 rounded font-bold text-lg hover:bg-gray-200 transition-all duration-1000 flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-                    More Info
-                  </button>
-                </Link>
-              </div>
+            </div>
+
+            {/* Buttons stay clickable while the trailer plays */}
+            <div className={`flex flex-wrap gap-4 transition-opacity duration-1000 ${playing ? 'opacity-70 hover:opacity-100' : 'opacity-100'}`}>
+              {videos.length > 0 && (
+                <button
+                  onClick={() => setModalOpen(true)}
+                  className="bg-white text-black px-8 py-3 rounded font-bold text-lg hover:bg-gray-200 transition-colors flex items-center gap-2"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                  Play {videos[0].type || "Trailer"}
+                </button>
+              )}
+              <Link href={`/movie/${baseMovie.id}?type=${baseMovie.media_type || "movie"}`}>
+                <button className="bg-white/20 backdrop-blur-sm text-white px-8 py-3 rounded font-bold text-lg hover:bg-white/30 transition-colors flex items-center gap-2 border border-white/20">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                  More Info
+                </button>
+              </Link>
             </div>
           </motion.div>
-          
-          {showTrailer && trailer && (
-            <button 
+
+          {playing && (
+            <button
               onClick={toggleMute}
               className="absolute bottom-12 right-6 md:right-12 z-50 p-2 transition-all text-white/40 hover:text-white/90 drop-shadow-md pointer-events-auto hover:scale-105"
               aria-label={isMuted ? "Unmute" : "Mute"}
@@ -161,6 +170,14 @@ function HeroCarousel({ items }) {
           )}
         </div>
       </div>
+
+      <TrailerModal
+        open={modalOpen}
+        videos={videos}
+        title={baseMovie.title}
+        year={(baseMovie.release_date || "").slice(0, 4)}
+        onClose={() => setModalOpen(false)}
+      />
     </div>
   );
 }
@@ -216,7 +233,7 @@ function HomeContent() {
   const filteredTrending = tab === "all"
     ? trending
     : tab === "anime"
-    ? trending.filter((m) => (m.title && m.title.toLowerCase().match(/anime|no hero|jujutsu|demon slayer|attack on titan|naruto|one piece|bleach|dragon ball/)))
+    ? trending.filter((m) => m.media_type === "anime" || ((m.genres || "").includes("Animation") && m.original_language === "ja"))
     : trending.filter((m) => m.media_type === tab);
 
   const filteredCategories = {};
