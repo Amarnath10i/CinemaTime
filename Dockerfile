@@ -2,11 +2,11 @@ FROM python:3.10
 
 WORKDIR /code
 
-# Copy the requirements file from the backend folder
-COPY ./backend/requirements.txt /code/requirements.txt
+# Copy the requirements files from the backend folder
+COPY ./backend/requirements.txt ./backend/requirements-ml.txt /code/
 
-# Install python dependencies
-RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
+# Install python dependencies, with CPU-only torch to keep the image small
+RUN pip install --no-cache-dir --upgrade --extra-index-url https://download.pytorch.org/whl/cpu -r /code/requirements-ml.txt
 
 # Copy all the backend files into the container
 COPY ./backend /code/

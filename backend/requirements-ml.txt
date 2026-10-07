@@ -1,0 +1,7 @@
+# Everything in requirements.txt plus the ML stack for semantic "vibe" search
+# and for build_dataset.py. Kept separate because torch is far larger than
+# Vercel's 500 MB function limit; the API runs without it and reports vibe
+# search as unavailable.
+-r requirements.txt
+scikit-learn
+sentence-transformers

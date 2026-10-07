@@ -2,6 +2,7 @@ import os
 import json
 import hashlib
 import secrets
+import tempfile
 from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import HTTPException, Depends, Header
@@ -19,7 +20,10 @@ SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
 
 # Local file fallback for user data (if no Supabase)
-USERS_FILE = os.path.join(os.path.dirname(__file__), "users.json")
+USERS_FILE = os.getenv("USERS_FILE") or os.path.join(os.path.dirname(__file__), "users.json")
+# Serverless hosts (Vercel) only allow writes under /tmp, which is wiped on cold starts.
+if not os.access(os.path.dirname(os.path.abspath(USERS_FILE)), os.W_OK):
+    USERS_FILE = os.path.join(tempfile.gettempdir(), "cinematime_users.json")
 
 class UserCreate(BaseModel):
     email: EmailStr

@@ -1,13 +1,19 @@
-FROM python:3.10
+# Hugging Face Spaces (Docker SDK): the container runs as uid 1000 and must listen on 7860.
+FROM python:3.11-slim
+
+RUN useradd -m -u 1000 user
+ENV HOME=/home/user PYTHONUNBUFFERED=1
 
 WORKDIR /code
 
-COPY ./requirements.txt /code/requirements.txt
+COPY --chown=user ./requirements.txt ./requirements-ml.txt /code/
 
-RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
+# CPU-only torch (for sentence-transformers) keeps the image several GB smaller.
+RUN pip install --no-cache-dir --upgrade --extra-index-url https://download.pytorch.org/whl/cpu -r /code/requirements-ml.txt
 
-# Copy all backend files to the container
-COPY . /code/
+# Copy all backend files to the container, owned by the runtime user so auth can write users.json
+COPY --chown=user . /code/
 
-# Hugging Face Spaces run on port 7860 by default
+USER user
+
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "7860"]

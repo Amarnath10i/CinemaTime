@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "main.py": {
+      "excludeFiles": "{tests/**,eval_group_rec.py,start.py,Dockerfile,supabase_schema.sql,.env*}",
+      "maxDuration": 60
+    }
+  }
+}
