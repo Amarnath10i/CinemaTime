@@ -34,7 +34,7 @@ def recommend(
     for s in range(0, len(users), batch):
         u = users[s : s + batch]
         h = fold.train[u]
-        scores = np.asarray(model.score(h, u), dtype=np.float32)
+        scores = np.array(model.score(h, u), dtype=np.float32)  # own copy: we mask it below
         rows, cols = h.nonzero()
         scores[rows, cols] = -np.inf
         out[s : s + len(u)] = top_k(scores, k)

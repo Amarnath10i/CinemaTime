@@ -110,6 +110,7 @@ class Fold:
     users: np.ndarray  # evaluated users (row ids into `train`)
     truth: list[np.ndarray]  # their likes inside the window, not already in their history
     item_pop: np.ndarray  # likes per item before the cutoff
+    recent_pop: np.ndarray  # likes per item in the 365 days before the cutoff
 
     @property
     def n_items(self) -> int:
@@ -147,8 +148,19 @@ def make_fold(
             users.append(u)
             truth.append(t.astype(np.int32))
     item_pop = np.asarray(train.sum(axis=0)).ravel()
+    last_year = before[before["ts"] >= cutoff - pd.Timedelta(days=365)]
+    recent_pop = np.bincount(last_year["item"].to_numpy(), minlength=n_items).astype(np.float64)
     log.info("fold %s: %d train likes, %d evaluated users", name, train.nnz, len(users))
-    return Fold(name, cutoff, window_end, train, np.array(users, dtype=np.int64), truth, item_pop)
+    return Fold(
+        name,
+        cutoff,
+        window_end,
+        train,
+        np.array(users, dtype=np.int64),
+        truth,
+        item_pop,
+        recent_pop,
+    )
 
 
 def folds(likes: pd.DataFrame, n_items: int) -> dict[str, Fold]:
