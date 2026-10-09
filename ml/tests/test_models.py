@@ -35,6 +35,7 @@ def planted(n_users=400, n_items=60, rank=3, seed=0):
         [truth[i] for i in keep],
         pop,
         pop,
+        train,  # every like is "1 day old"
     )
     return fold
 
@@ -117,3 +118,40 @@ def test_content_profile_of_one_item_is_that_item():
     h = sp.csr_matrix(([1.0], ([0], [3])), shape=(1, 10))
     scores = m.score(h, np.array([0]))[0]
     assert scores.argmax() == 3 and scores[3] == pytest.approx(1.0, abs=1e-6)
+
+
+def test_decay_halves_weight_every_half_life():
+    fold = planted()
+    ages = fold.train.copy()
+    ages.data = np.array(
+        [0.0, 365.0, 730.0] * (ages.nnz // 3) + [0.0] * (ages.nnz % 3), dtype=np.float32
+    )
+    fold.age_days = ages
+    w = fold.decayed(365.0).data
+    np.testing.assert_allclose(w[:3], [1.0, 0.5, 0.25], rtol=1e-6)
+    assert fold.decayed(None) is fold.train
+
+
+def test_content_map_recovers_a_linear_relationship():
+    from cinemaml.models.hybrid import content_to_factors
+
+    rng = np.random.default_rng(3)
+    c = rng.standard_normal((500, 12))
+    w_true = rng.standard_normal((12, 4))
+    y = c @ w_true + 0.01 * rng.standard_normal((500, 4))
+    np.testing.assert_allclose(content_to_factors(c, y, mu=1e-6), w_true, atol=0.01)
+
+
+def test_hybrid_scores_cold_items_and_keeps_warm_ones():
+    from cinemaml.models.hybrid import HybridALS
+
+    fold = planted()
+    items = _Items(60)
+    fold.item_pop = fold.item_pop.copy()
+    fold.item_pop[:5] = 0  # pretend the first five movies were never liked
+    als = ALS(factors=6, iterations=5).fit(fold)
+    hybrid = HybridALS(als, mu=1.0, min_likes=1).fit(fold, items)
+    cold = fold.is_cold()  # the five we zeroed, plus any movie nobody happened to like
+    assert cold[:5].all()
+    np.testing.assert_array_equal(hybrid.item_factors[~cold], als.item_factors[~cold])
+    np.testing.assert_allclose(hybrid.item_factors[cold], items.content[cold] @ hybrid.w, rtol=1e-5)

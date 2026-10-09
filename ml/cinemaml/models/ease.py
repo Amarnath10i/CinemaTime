@@ -36,17 +36,30 @@ def ease_weights(g: np.ndarray, lam: float) -> np.ndarray:
 
 
 class EASE:
-    def __init__(self, lam: float = 500.0, keep: int | None = None) -> None:
+    """`half_life_days` weights each like by recency, in training and in a user's
+    history, so the model learns from and reacts to current tastes."""
+
+    def __init__(
+        self, lam: float = 500.0, keep: int | None = None, half_life_days: float | None = None
+    ) -> None:
         self.lam = lam
         self.keep = keep
-        self.name = f"EASE (lambda={lam:g})" + (f", top {keep} weights per item" if keep else "")
+        self.half_life_days = half_life_days
+        self.name = (
+            f"EASE (lambda={lam:g}"
+            + (f", half-life {half_life_days / 365:g}y)" if half_life_days else ")")
+            + (f", top {keep} weights per item" if keep else "")
+        )
 
     def fit(self, fold: Fold, items: Items) -> EASE:
-        b = ease_weights(gram(fold.train), self.lam).astype(np.float32)
+        self.fold = fold
+        b = ease_weights(gram(fold.decayed(self.half_life_days)), self.lam).astype(np.float32)
         self.b = b if self.keep is None else signed_sparsify(b, self.keep)
         return self
 
     def score(self, history: sp.csr_matrix, users: np.ndarray) -> np.ndarray:
+        if self.half_life_days is not None and users is not None:
+            history = self.fold.decayed(self.half_life_days)[users]
         out = history @ self.b
         return out.toarray() if sp.issparse(out) else np.asarray(out)
 

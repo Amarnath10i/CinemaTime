@@ -111,10 +111,19 @@ class Fold:
     truth: list[np.ndarray]  # their likes inside the window, not already in their history
     item_pop: np.ndarray  # likes per item before the cutoff
     recent_pop: np.ndarray  # likes per item in the 365 days before the cutoff
+    age_days: sp.csr_matrix  # same sparsity as `train`; how old each like is at the cutoff
 
     @property
     def n_items(self) -> int:
         return self.train.shape[1]
+
+    def decayed(self, half_life_days: float | None) -> sp.csr_matrix:
+        """Likes weighted by recency: 1 today, 1/2 after one half-life."""
+        if half_life_days is None:
+            return self.train
+        w = self.age_days.copy()
+        w.data = np.exp2(-w.data / half_life_days).astype(np.float32)
+        return w
 
     def is_cold(self) -> np.ndarray:
         """Items nobody had liked before the cutoff."""
@@ -127,15 +136,15 @@ def make_fold(
     proto = settings.protocol
     n_users = int(likes["user"].max()) + 1
     before = likes[likes["ts"] < cutoff]
-    train = sp.csr_matrix(
-        (
-            np.ones(len(before), dtype=np.float32),
-            (before["user"].to_numpy(), before["item"].to_numpy()),
-        ),
+    # MovieLens has one rating per user and movie, so (user, item) pairs are unique
+    ages = ((cutoff - before["ts"]).dt.total_seconds() / 86_400).to_numpy(np.float32)
+    age_days = sp.csr_matrix(
+        (ages + 1e-3, (before["user"].to_numpy(), before["item"].to_numpy())),
         shape=(n_users, n_items),
     )
-    train.sum_duplicates()
-    train.data[:] = 1.0
+    age_days.sort_indices()
+    train = age_days.copy()
+    train.data = np.ones_like(train.data)
     history = np.diff(train.indptr)
 
     window = likes[(likes["ts"] >= cutoff) & (likes["ts"] < window_end)]
@@ -160,6 +169,7 @@ def make_fold(
         truth,
         item_pop,
         recent_pop,
+        age_days,
     )
 
 
