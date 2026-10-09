@@ -1,0 +1,39 @@
+[project]
+name = "cinematime-ml"
+version = "0.1.0"
+description = "Offline training and evaluation for CinemaTime's recommender (MovieLens 32M joined to the catalog)"
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "numpy>=2.0",
+    "scipy>=1.13",
+    "pandas>=2.2",
+    "pyarrow>=16",
+    "lightgbm>=4.5",
+    "faiss-cpu>=1.8",
+    "tabulate>=0.9",
+]
+
+[project.scripts]
+cinemaml = "cinemaml.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8.3", "hypothesis>=6.112", "ruff>=0.6"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["cinemaml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "NPY"]
+ignore = ["E501"]
