@@ -20,42 +20,47 @@ test cutoff, so no future information leaks into training.
 from __future__ import annotations
 
 import logging
+import sys
 from dataclasses import dataclass
 
 import lightgbm as lgb
 import numpy as np
 import scipy.sparse as sp
 
+from cinemaml.config import REPO
 from cinemaml.data import Fold, Items
-from cinemaml.metrics import top_k
+
+# The feature code lives with the API so training and serving share it.
+sys.path.insert(0, str(REPO / "backend"))
+from recsys import features  # noqa: E402
+from recsys.features import FEATURES, ItemContext  # noqa: E402
 
 log = logging.getLogger(__name__)
 
-FEATURES = [
-    "ease_score", "ease_rank", "als_score", "als_rank", "content_score", "content_rank",
-    "log_likes", "log_likes_last_year", "share_last_year", "is_cold", "age_years",
-    "year_gap", "genre_overlap", "user_log_likes", "user_recent_share",
-]  # fmt: skip
+
+def genre_names(items: Items) -> list[str]:
+    genres = items.table["genres"].fillna("").str.split(",")
+    return sorted({g.strip() for gs in genres for g in gs if g.strip()})
 
 
 def genre_matrix(items: Items) -> np.ndarray:
-    genres = items.table["genres"].fillna("").str.split(",")
-    names = sorted({g.strip() for gs in genres for g in gs if g.strip()})
-    index = {g: i for i, g in enumerate(names)}
-    m = np.zeros((len(items), len(names)), dtype=np.float32)
-    for row, gs in enumerate(genres):
+    index = {g: i for i, g in enumerate(genre_names(items))}
+    m = np.zeros((len(items), len(index)), dtype=np.float32)
+    for row, gs in enumerate(items.table["genres"].fillna("").str.split(",")):
         for g in gs:
             if g.strip():
                 m[row, index[g.strip()]] = 1.0
     return m
 
 
-def _ranks(scores: np.ndarray) -> np.ndarray:
-    """1 = best, per row."""
-    order = np.argsort(-scores, axis=1, kind="stable")
-    ranks = np.empty_like(order)
-    np.put_along_axis(ranks, order, np.arange(1, scores.shape[1] + 1)[None, :], axis=1)
-    return ranks
+def item_context(fold: Fold, items: Items) -> ItemContext:
+    return ItemContext(
+        genres=genre_matrix(items),
+        year=items.table["year"].to_numpy(np.float64),
+        reference_year=fold.cutoff.year,
+        item_pop=fold.item_pop.astype(np.float64),
+        recent_pop=fold.recent_pop.astype(np.float64),
+    )
 
 
 @dataclass
@@ -64,6 +69,14 @@ class Candidates:
     items: np.ndarray  # (n_rows,) item index
     features: np.ndarray  # (n_rows, len(FEATURES))
     groups: np.ndarray  # candidates per user, in order
+
+
+def labels_for(cand: Candidates, fold: Fold) -> np.ndarray:
+    """1 for each candidate the user went on to like inside the fold's window."""
+    truth = {u: set(t.tolist()) for u, t in zip(fold.users, fold.truth, strict=True)}
+    return np.fromiter(
+        (i in truth[u] for u, i in zip(cand.users, cand.items, strict=True)), dtype=np.float32
+    )
 
 
 class TwoStage:
@@ -85,53 +98,29 @@ class TwoStage:
         self.fold, self.items = fold, items
         if retrievers is not None:
             self.retrievers = retrievers
-        self._genres = genre_matrix(items)
-        year = items.table["year"].to_numpy(np.float64)
-        self._age = fold.cutoff.year - year
-        self._year = year
-        self._log_pop = np.log1p(fold.item_pop)
-        self._log_recent = np.log1p(fold.recent_pop)
-        self._share = fold.recent_pop / (fold.item_pop + 1.0)
-        self._cold = fold.is_cold().astype(np.float32)
+        self.ctx = item_context(fold, items)
         return self
+
+    def retrieve(self, history: sp.csr_matrix, users: np.ndarray) -> dict[str, np.ndarray]:
+        """Every retriever's scores, -inf where a movie cannot be recommended."""
+        seen_r, seen_c = history.nonzero()
+        gone = self.fold.unavailable()
+        scores = {}
+        for name in features.RETRIEVERS:
+            sc = np.array(self.retrievers[name].score(history, users), dtype=np.float32)
+            sc[seen_r, seen_c] = -np.inf
+            sc[:, gone] = -np.inf
+            scores[name] = sc
+        return scores
 
     def candidates(self, users: np.ndarray, batch: int = 512) -> Candidates:
         rows_u, rows_i, feats, groups = [], [], [], []
         for s in range(0, len(users), batch):
             u = users[s : s + batch]
             h = self.fold.train[u]
-            seen_r, seen_c = h.nonzero()
-            scores = {}
-            for name in ("ease", "als", "content", "popularity"):
-                sc = np.array(self.retrievers[name].score(h, u), dtype=np.float32)
-                sc[seen_r, seen_c] = -np.inf
-                scores[name] = sc
-            ranks = {n: _ranks(scores[n]) for n in ("ease", "als", "content")}
-            pick = np.zeros(scores["ease"].shape, dtype=bool)
-            for name, n in self.per_source.items():
-                np.put_along_axis(pick, top_k(scores[name], n), True, axis=1)
-            pick[seen_r, seen_c] = False
-
-            # user-level context from their history
-            n_likes = np.diff(h.indptr).astype(np.float64)
-            ages = self.fold.age_days[u]
-            recent = np.asarray((ages.multiply(ages < 365) > 0).sum(axis=1)).ravel()
-            g_dist = np.asarray(h @ self._genres) / np.maximum(n_likes, 1)[:, None]
-            liked_years = h.multiply(np.nan_to_num(self._year, nan=0.0)).sum(axis=1)
-            known = h @ (~np.isnan(self._year)).astype(np.float32)
-            mean_year = np.asarray(liked_years).ravel() / np.maximum(np.asarray(known).ravel(), 1)
-
-            r, c = np.nonzero(pick)
-            n_genres = np.maximum(self._genres[c].sum(axis=1), 1)
-            f = np.column_stack([
-                scores["ease"][r, c], ranks["ease"][r, c],
-                scores["als"][r, c], ranks["als"][r, c],
-                scores["content"][r, c], ranks["content"][r, c],
-                self._log_pop[c], self._log_recent[c], self._share[c], self._cold[c],
-                self._age[c], np.abs(self._year[c] - mean_year[r]),
-                np.einsum("ng,ng->n", g_dist[r], self._genres[c]) / n_genres,
-                np.log1p(n_likes[r]), recent[r] / np.maximum(n_likes[r], 1),
-            ]).astype(np.float32)  # fmt: skip
+            scores = self.retrieve(h, u)
+            pick = features.pick_candidates(scores, self.per_source)
+            r, c, f = features.build(self.ctx, h.toarray(), scores, pick)
             rows_u.append(u[r])
             rows_i.append(c.astype(np.int32))
             feats.append(f)
@@ -143,29 +132,28 @@ class TwoStage:
     def fit(self, fold: Fold, items: Items, valid_share: float = 0.2) -> TwoStage:
         self.set_fold(fold, items)
         cand = self.candidates(fold.users)
-        truth = {u: set(t.tolist()) for u, t in zip(fold.users, fold.truth, strict=True)}
-        labels = np.fromiter(
-            (i in truth[u] for u, i in zip(cand.users, cand.items, strict=True)), dtype=np.float32
-        )
+        labels = labels_for(cand, fold)
         self.candidate_recall = labels.sum() / sum(len(t) for t in fold.truth)
         log.info(
             "candidates: %d rows, recall of all likes %.3f", len(labels), self.candidate_recall
         )
+        self.booster = self.train(cand, labels, valid_share)
+        return self
 
-        # hold out whole users for early stopping
+    def train(self, cand: Candidates, labels: np.ndarray, valid_share: float = 0.2) -> lgb.Booster:
+        """LambdaRank on candidate lists, early-stopped on held-out whole users."""
         rng = np.random.default_rng(0)
-        hold = rng.random(len(fold.users)) < valid_share
+        hold = rng.random(len(cand.groups)) < valid_share
         row_hold = np.repeat(hold, cand.groups)
         dtrain = lgb.Dataset(cand.features[~row_hold], labels[~row_hold], group=cand.groups[~hold],
                              feature_name=FEATURES)  # fmt: skip
         dvalid = dtrain.create_valid(
             cand.features[row_hold], labels[row_hold], group=cand.groups[hold]
         )
-        self.booster = lgb.train(
+        return lgb.train(
             self.params, dtrain, 1000, valid_sets=[dvalid],
             callbacks=[lgb.early_stopping(50, verbose=False)],
         )  # fmt: skip
-        return self
 
     def score(self, history: sp.csr_matrix, users: np.ndarray) -> np.ndarray:
         cand = self.candidates(users)

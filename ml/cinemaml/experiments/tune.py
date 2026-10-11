@@ -14,18 +14,34 @@ import time
 import pandas as pd
 
 from cinemaml.evaluate import evaluate
-from cinemaml.experiments.common import BEST, fold, items, write_report
-from cinemaml.models import ALS, EASE, ItemKNN
+from cinemaml.experiments.common import BEST, fitted_als, fold, items, write_report
+from cinemaml.models import EASE, ItemKNN
 
 log = logging.getLogger(__name__)
 
-EASE_GRID = [(lam, hl) for lam in (250, 500, 1000, 2000) for hl in (None, 4 * 365, 2 * 365, 365)]
+EASE_GRID = [
+    (lam, hl) for lam in (250, 500, 1000, 2000) for hl in (None, 4 * 365, 2 * 365, 365, 182, 91)
+]
 ALS_GRID = [
     {"factors": 64, "alpha": 20.0, "lam": 10.0},
     {"factors": 128, "alpha": 20.0, "lam": 10.0},
     {"factors": 128, "alpha": 40.0, "lam": 50.0},
 ]
 KNN_GRID = [(200, 50.0), (500, 100.0)]
+
+
+class _Cached:
+    """An already-fitted model; fit() is a no-op so cached ALS runs are reused."""
+
+    def __init__(self, model) -> None:
+        self.model, self.name = model, model.name
+        self.fit_seconds = model.fit_seconds  # measured when it was first fitted
+
+    def fit(self, fold, items):
+        return self
+
+    def score(self, history, users):
+        return self.model.score(history, users)
 
 
 def run() -> str:
@@ -35,10 +51,10 @@ def run() -> str:
     def record(family: str, params: dict, model) -> None:
         t0 = time.perf_counter()
         model.fit(f, it)
-        fit_s = time.perf_counter() - t0
+        fit_s = getattr(model, "fit_seconds", time.perf_counter() - t0)
         m = evaluate(model, f, it).means()
         rows.append(
-            {"family": family, "model": model.name, "fit (s)": round(fit_s),
+            {"family": family, "model": model.name, "fit (s)": round(fit_s) if fit_s == fit_s else None,
              "recall@20": m["recall@20"], "ndcg@20": m["ndcg@20"], "coverage@10": m["coverage"]}
         )  # fmt: skip
         if m["ndcg@20"] > best.get(family, (None, -1.0))[1]:
@@ -50,7 +66,7 @@ def run() -> str:
     for neighbors, shrink in KNN_GRID:
         record("itemknn", {"neighbors": neighbors, "shrink": shrink}, ItemKNN(neighbors, shrink))
     for params in ALS_GRID:
-        record("als", params, ALS(**params, iterations=12))
+        record("als", params, _Cached(fitted_als("valid", params)))
 
     chosen = {family: params for family, (params, _) in best.items()}
     BEST.parent.mkdir(parents=True, exist_ok=True)

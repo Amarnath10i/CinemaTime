@@ -47,7 +47,7 @@ class EASE:
         self.half_life_days = half_life_days
         self.name = (
             f"EASE (lambda={lam:g}"
-            + (f", half-life {half_life_days / 365:g}y)" if half_life_days else ")")
+            + (f", half-life {_span(half_life_days)})" if half_life_days else ")")
             + (f", top {keep} weights per item" if keep else "")
         )
 
@@ -62,6 +62,10 @@ class EASE:
             history = self.fold.decayed(self.half_life_days)[users]
         out = history @ self.b
         return out.toarray() if sp.issparse(out) else np.asarray(out)
+
+
+def _span(days: float) -> str:
+    return f"{days / 365:g}y" if days >= 365 else f"{round(days / 30.4)}mo"
 
 
 def signed_sparsify(b: np.ndarray, k: int) -> sp.csr_matrix:
