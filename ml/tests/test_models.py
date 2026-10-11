@@ -155,3 +155,13 @@ def test_hybrid_scores_cold_items_and_keeps_warm_ones():
     assert cold[:5].all()
     np.testing.assert_array_equal(hybrid.item_factors[~cold], als.item_factors[~cold])
     np.testing.assert_allclose(hybrid.item_factors[cold], items.content[cold] @ hybrid.w, rtol=1e-5)
+
+
+def test_movies_released_after_the_window_are_never_recommended():
+    fold = planted()
+    items = _Items(60)
+    fold.available = np.ones(60, dtype=bool)
+    fold.available[::3] = False  # pretend every third movie came out after the window
+    for model in (Popularity(), Content(), EASE(lam=20.0)):
+        recs = recommend(model.fit(fold, items), fold, fold.users, 20)
+        assert not np.isin(recs, np.flatnonzero(~fold.available)).any(), model.name

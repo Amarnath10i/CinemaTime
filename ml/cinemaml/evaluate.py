@@ -29,7 +29,8 @@ class Recommender(Protocol):
 def recommend(
     model: Recommender, fold: Fold, users: np.ndarray, k: int, batch: int = 1024
 ) -> np.ndarray:
-    """Top-k items per user, never including what they already liked."""
+    """Top-k items per user, never including what they already liked or
+    anything released after the evaluation window."""
     out = np.empty((len(users), k), dtype=np.int32)
     for s in range(0, len(users), batch):
         u = users[s : s + batch]
@@ -37,6 +38,7 @@ def recommend(
         scores = np.array(model.score(h, u), dtype=np.float32)  # own copy: we mask it below
         rows, cols = h.nonzero()
         scores[rows, cols] = -np.inf
+        scores[:, fold.unavailable()] = -np.inf
         out[s : s + len(u)] = top_k(scores, k)
     return out
 

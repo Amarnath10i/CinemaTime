@@ -27,9 +27,8 @@ log = logging.getLogger(__name__)
 
 @dataclass
 class Items:
-    table: (
-        pd.DataFrame
-    )  # item_idx, catalog_id, catalog_row, tmdb, movieId (nullable), title, year, genres
+    # item_idx, catalog_id, catalog_row, tmdb, movieId (nullable), title, year, released, genres
+    table: pd.DataFrame
     content: np.ndarray  # (n_items, 384) float32 SBERT vectors, L2-normalized
 
     def __len__(self) -> int:
@@ -68,6 +67,9 @@ def load_items() -> Items:
         table.insert(0, "item_idx", np.arange(len(table), dtype=np.int32))
         p.cache.mkdir(parents=True, exist_ok=True)
         table.to_parquet(cache, index=False)
+    table["released"] = pd.to_datetime(
+        catalog.loc[table["catalog_row"], "release_date"].to_numpy(), errors="coerce"
+    )
 
     index = faiss.read_index(str(p.content_index))
     vectors = index.reconstruct_n(0, index.ntotal)[table["catalog_row"].to_numpy()]
@@ -112,6 +114,8 @@ class Fold:
     item_pop: np.ndarray  # likes per item before the cutoff
     recent_pop: np.ndarray  # likes per item in the 365 days before the cutoff
     age_days: sp.csr_matrix  # same sparsity as `train`; how old each like is at the cutoff
+    # movies already released when the window closes; None = all of them
+    available: np.ndarray | None = None
 
     @property
     def n_items(self) -> int:
@@ -129,9 +133,26 @@ class Fold:
         """Items nobody had liked before the cutoff."""
         return self.item_pop == 0
 
+    def unavailable(self) -> np.ndarray:
+        """Items no model may recommend in this fold.
+
+        A quarter of the catalog was released after MovieLens 32M ends. Those
+        films did not exist during the evaluation window, so nobody could have
+        liked them; content-based models would still rank them and lose
+        accuracy to an artifact of the protocol rather than to bad taste.
+        """
+        if self.available is None:
+            return np.zeros(self.n_items, dtype=bool)
+        return ~self.available
+
 
 def make_fold(
-    likes: pd.DataFrame, n_items: int, cutoff: pd.Timestamp, window_end: pd.Timestamp, name: str
+    likes: pd.DataFrame,
+    n_items: int,
+    cutoff: pd.Timestamp,
+    window_end: pd.Timestamp,
+    name: str,
+    released: pd.Series | None = None,
 ) -> Fold:
     proto = settings.protocol
     n_users = int(likes["user"].max()) + 1
@@ -159,6 +180,8 @@ def make_fold(
     item_pop = np.asarray(train.sum(axis=0)).ravel()
     last_year = before[before["ts"] >= cutoff - pd.Timedelta(days=365)]
     recent_pop = np.bincount(last_year["item"].to_numpy(), minlength=n_items).astype(np.float64)
+    # an unknown release date counts as released
+    available = None if released is None else ~(released >= window_end).to_numpy()
     log.info("fold %s: %d train likes, %d evaluated users", name, train.nnz, len(users))
     return Fold(
         name,
@@ -170,12 +193,17 @@ def make_fold(
         item_pop,
         recent_pop,
         age_days,
+        available,
     )
 
 
-def folds(likes: pd.DataFrame, n_items: int) -> dict[str, Fold]:
+def make_named_fold(likes: pd.DataFrame, items: Items, name: str) -> Fold:
+    """The protocol's "valid" and "test" folds, or "full": every like, for
+    the model that is shipped once evaluation is done (it has no window)."""
     p = settings.protocol
-    return {
-        "valid": make_fold(likes, n_items, p.valid_start, p.test_start, "valid"),
-        "test": make_fold(likes, n_items, p.test_start, p.end, "test"),
-    }
+    cutoff, window_end = {
+        "valid": (p.valid_start, p.test_start),
+        "test": (p.test_start, p.end),
+        "full": (p.end, p.end),
+    }[name]
+    return make_fold(likes, len(items), cutoff, window_end, name, items.table["released"])
