@@ -26,7 +26,7 @@ from cinemaml.experiments.common import (
     write_report,
 )
 from cinemaml.metrics import paired_difference, user_metrics
-from cinemaml.models.ranker import FEATURES, Candidates, TwoStage, labels_for
+from cinemaml.models.ranker import FEATURES, Candidates, TwoStage, labels_for, used_trees
 
 log = logging.getLogger(__name__)
 
@@ -49,7 +49,7 @@ def without(cand: Candidates, columns: list[str]) -> Candidates:
 def ndcg_per_user(booster, cand: Candidates, f) -> np.ndarray:
     """NDCG@20 of each test user's re-ranked candidates (truth outside the
     candidates counts as missed, as it would in production)."""
-    s = booster.predict(cand.features, num_iteration=booster.best_iteration or None)
+    s = booster.predict(cand.features, num_iteration=used_trees(booster))
     starts = np.concatenate([[0], np.cumsum(cand.groups)])
     out = np.empty(len(f.users))
     for i, truth in enumerate(f.truth):

@@ -45,6 +45,7 @@ from cinemaml.experiments.common import (
 from cinemaml.metrics import bootstrap, paired_difference, top_k, user_metrics
 from cinemaml.models import EASE
 from cinemaml.models.ease import signed_sparsify
+from cinemaml.models.ranker import used_trees
 
 sys.path.insert(0, str(REPO / "backend"))
 from recsys.engine import Engine  # noqa: E402
@@ -224,7 +225,7 @@ def run() -> str:
          "offline": json.loads(results.read_text()) if results.exists() else None,
          "replay": replay_summary},
     )  # fmt: skip
-    trees = shipped_ranker.booster.best_iteration or shipped_ranker.booster.num_trees()
+    trees = used_trees(shipped_ranker.booster)
 
     text = "\n".join(
         [

@@ -23,7 +23,7 @@ from cinemaml.experiments.common import (
 )
 from cinemaml.metrics import bootstrap, paired_difference
 from cinemaml.models import EASE, Content, ItemKNN, Popularity
-from cinemaml.models.ranker import TwoStage
+from cinemaml.models.ranker import TwoStage, used_trees
 
 log = logging.getLogger(__name__)
 
@@ -94,7 +94,7 @@ def run() -> str:
         "models": {name: r.means() for name, r in results.items()},
         "fit_seconds": {name: round(sec, 1) for name, sec in fit_seconds.items()},
         "ranker": {"name": ranker.name, "valid_candidate_recall": float(valid_candidate_recall),
-                   "trees": ranker.booster.best_iteration or ranker.booster.num_trees()},
+                   "trees": used_trees(ranker.booster)},
     }  # fmt: skip
     (settings.paths.reports / "results.json").write_text(json.dumps(summary, indent=2))
 

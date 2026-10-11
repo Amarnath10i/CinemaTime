@@ -18,7 +18,7 @@ import scipy.sparse as sp
 
 from cinemaml.config import REPO
 from cinemaml.data import Fold, Items
-from cinemaml.models.ranker import genre_matrix, genre_names
+from cinemaml.models.ranker import genre_matrix, genre_names, used_trees
 
 sys.path.insert(0, str(REPO / "backend"))
 from recsys.features import FEATURES  # noqa: E402
@@ -53,7 +53,7 @@ def write(
 
     als = hybrid.als
     y = als.item_factors.astype(np.float64)
-    trees = TreeEnsemble(booster.dump_model(num_iteration=booster.best_iteration or None))
+    trees = TreeEnsemble(booster.dump_model(num_iteration=used_trees(booster)))
 
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)

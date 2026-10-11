@@ -54,7 +54,7 @@ def run() -> str:
         fit_s = getattr(model, "fit_seconds", time.perf_counter() - t0)
         m = evaluate(model, f, it).means()
         rows.append(
-            {"family": family, "model": model.name, "fit (s)": round(fit_s) if fit_s == fit_s else None,
+            {"family": family, "model": model.name, "fit (s)": f"{fit_s:.0f}" if fit_s == fit_s else "cached",
              "recall@20": m["recall@20"], "ndcg@20": m["ndcg@20"], "coverage@10": m["coverage"]}
         )  # fmt: skip
         if m["ndcg@20"] > best.get(family, (None, -1.0))[1]:

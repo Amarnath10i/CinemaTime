@@ -71,6 +71,12 @@ class Candidates:
     groups: np.ndarray  # candidates per user, in order
 
 
+def used_trees(booster: lgb.Booster) -> int:
+    """Trees the model predicts with: the early-stopping point, or all of them
+    for a booster loaded from file (whose best_iteration is then -1 or 0)."""
+    return booster.best_iteration if booster.best_iteration > 0 else booster.num_trees()
+
+
 def labels_for(cand: Candidates, fold: Fold) -> np.ndarray:
     """1 for each candidate the user went on to like inside the fold's window."""
     truth = {u: set(t.tolist()) for u, t in zip(fold.users, fold.truth, strict=True)}
@@ -160,6 +166,6 @@ class TwoStage:
         out = np.full((len(users), self.fold.n_items), -np.inf, dtype=np.float32)
         row = np.repeat(np.arange(len(users)), cand.groups)
         out[row, cand.items] = self.booster.predict(
-            cand.features, num_iteration=self.booster.best_iteration
+            cand.features, num_iteration=used_trees(self.booster)
         )
         return out
