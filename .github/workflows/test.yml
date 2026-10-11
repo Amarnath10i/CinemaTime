@@ -30,3 +30,23 @@ jobs:
       run: |
         cd backend
         pytest tests/
+
+  ml:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ml
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v5
+
+    - name: Install
+      run: uv sync --frozen
+
+    - name: Lint
+      run: uv run ruff check .
+
+    - name: Model and serving tests (synthetic data, no download)
+      run: uv run pytest
