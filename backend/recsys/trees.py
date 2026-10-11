@@ -17,9 +17,22 @@ from __future__ import annotations
 import numpy as np
 
 _MISSING = {"None": 0, "NaN": 1, "Zero": 2}
+_ARRAYS = ("feature", "threshold", "left", "right", "default_left", "missing", "value", "roots")
 
 
 class TreeEnsemble:
+    def arrays(self) -> dict[str, np.ndarray]:
+        """The flattened trees, for np.savez; far smaller than the JSON dump."""
+        return {f"tree_{name}": getattr(self, name) for name in _ARRAYS}
+
+    @classmethod
+    def from_arrays(cls, arrays, feature_names: list[str]) -> TreeEnsemble:
+        self = cls.__new__(cls)
+        self.feature_names = list(feature_names)
+        for name in _ARRAYS:
+            setattr(self, name, np.asarray(arrays[f"tree_{name}"]))
+        return self
+
     def __init__(self, model: dict) -> None:
         self.feature_names = model["feature_names"]
         feature, threshold, left, right, default_left, missing, value = ([] for _ in range(7))
@@ -53,10 +66,14 @@ class TreeEnsemble:
         self.value = np.array(value, dtype=np.float64)
         self.roots = np.array(self.roots, dtype=np.int32)
 
-    def predict(self, x: np.ndarray) -> np.ndarray:
+    def predict(self, x: np.ndarray, chunk: int = 4096) -> np.ndarray:
         """Raw score (sum of leaf values) per row."""
         x = np.asarray(x, dtype=np.float64)
+        if x.shape[0] > chunk:  # bound the (rows, trees) work arrays
+            return np.concatenate([self.predict(x[s : s + chunk]) for s in range(0, len(x), chunk)])
         n = x.shape[0]
+        if n == 0:
+            return np.zeros(0)
         node = np.tile(self.roots, (n, 1))  # (rows, trees)
         rows = np.arange(n)[:, None]
         while True:
