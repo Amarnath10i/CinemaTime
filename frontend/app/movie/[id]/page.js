@@ -6,6 +6,7 @@ import Link from "next/link";
 import { MovieCard, idHues } from "../../../components/MovieCard";
 import { TrailerModal } from "../../../components/TrailerModal";
 import { youtubeThumb, youtubeSearchUrl } from "../../../components/TrailerPlayer";
+import { LikeButton } from "../../../components/LikeButton";
 
 function MediaBadge({ type }) {
   const config = {
@@ -159,6 +160,7 @@ function MovieDetailContent() {
                   Find Trailer on YouTube
                 </a>
               )}
+              {(movie.media_type || "movie") === "movie" && <LikeButton movie={movie} />}
               {trailers.length > 1 && (
                 <a href="#videos" className="px-6 py-3 rounded font-bold text-lg text-white bg-white/10 hover:bg-white/20 border border-white/20 transition-colors">
                   {trailers.length} Videos

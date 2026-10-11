@@ -68,7 +68,7 @@ export function MovieCard({ movie, index: i, priority = false }) {
             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
                <div className="flex items-center gap-2 mb-2">
                  <MediaBadge type={movie.media_type || "movie"} />
-                 {movie.explanation && (
+                 {movie.explanation?.match_pct !== undefined && (
                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#00b4ff]/20 text-[#00b4ff] border border-[#00b4ff]/30 shadow-sm">
                      {movie.explanation.match_pct}% MATCH
                    </span>

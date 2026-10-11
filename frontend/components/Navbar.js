@@ -19,9 +19,10 @@ export function Navbar() {
           </span>
         </Link>
 
-        <div className="hidden md:flex absolute left-1/2 -translate-x-1/2 items-center gap-12 font-bold text-lg tracking-wider text-gray-300">
+        <div className="hidden md:flex absolute left-1/2 -translate-x-1/2 items-center gap-10 font-bold text-lg tracking-wider text-gray-300">
           <Link href="/?tab=movie" className="hover:text-white transition-colors hover:scale-105 transform">Movies</Link>
           <Link href="/?tab=tv" className="hover:text-white transition-colors hover:scale-105 transform">TV Shows</Link>
+          <Link href="/for-you" className="hover:text-white transition-colors hover:scale-105 transform">For You</Link>
           <Link href="/vibes" className="hover:text-white transition-colors hover:scale-105 transform">Vibes</Link>
           <Link href="/group" className="hover:text-white transition-colors hover:scale-105 transform">Group Watch</Link>
         </div>
@@ -55,6 +56,7 @@ export function Navbar() {
             <div className="flex flex-col gap-8 text-2xl font-bold font-outfit uppercase tracking-widest text-center mt-12">
               <Link href="/?tab=movie" onClick={() => setMobileMenuOpen(false)} className="text-gray-300 hover:text-white transition-colors">Movies</Link>
               <Link href="/?tab=tv" onClick={() => setMobileMenuOpen(false)} className="text-gray-300 hover:text-white transition-colors">TV Shows</Link>
+              <Link href="/for-you" onClick={() => setMobileMenuOpen(false)} className="text-gray-300 hover:text-white transition-colors">For You</Link>
               <Link href="/vibes" onClick={() => setMobileMenuOpen(false)} className="text-gray-300 hover:text-white transition-colors">Vibes</Link>
               <Link href="/group" onClick={() => setMobileMenuOpen(false)} className="text-gray-300 hover:text-white transition-colors">Group Watch</Link>
             </div>
