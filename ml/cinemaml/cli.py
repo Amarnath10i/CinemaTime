@@ -10,10 +10,10 @@ EXPERIMENTS = {
     "tune": "Hyperparameter selection on the validation fold",
     "compare": "Every model on the test fold, with bootstrap intervals",
     "coldstart": "Content-to-collaborative mapping for movies nobody has rated yet",
-    "ranker": "Two-stage retrieval + LambdaRank re-ranking",
+    "ablation": "Retrain the ranker without each feature group",
     "diversity": "MMR re-ranking: accuracy vs diversity trade-off",
     "groups": "Group recommendation strategies on real users",
-    "export": "Write the serving artifacts to backend/recsys/",
+    "export": "Replay the served engine, then write backend/recsys/artifacts/",
 }
 
 
