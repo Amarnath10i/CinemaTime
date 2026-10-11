@@ -55,3 +55,38 @@ def test_api_group_recommend():
     assert response.status_code == 200
     data = response.json()
     assert isinstance(data, list)
+
+
+def test_api_for_you():
+    from main import ENGINE
+
+    response = client.post("/api/for-you", json={"liked": ["tmdb_550", "tmdb_157336", "tmdb_27205"], "n": 10})
+    assert response.status_code == 200
+    data = response.json()
+    if not data["available"]:
+        pytest.skip("Personalized model artifacts not exported")
+    assert data["used_likes"] == sum(i in ENGINE.position for i in ["tmdb_550", "tmdb_157336", "tmdb_27205"])
+    ids = [m["id"] for m in data["items"]]
+    assert ids and len(ids) == len(set(ids))
+    assert not {"tmdb_550", "tmdb_157336", "tmdb_27205"} & set(ids)  # never recommend what you liked
+    for m in data["items"]:
+        assert m["explanation"]["kind"] in {"collaborative", "new", "content"}
+        assert m["explanation"]["reason"]
+
+
+def test_api_for_you_without_likes_falls_back_to_popular():
+    response = client.post("/api/for-you", json={"liked": [], "n": 5})
+    assert response.status_code == 200
+    data = response.json()
+    if not data["available"]:
+        pytest.skip("Personalized model artifacts not exported")
+    assert len(data["items"]) == 5
+    assert all(m["explanation"]["kind"] == "popular" for m in data["items"])
+
+
+def test_api_model_card():
+    response = client.get("/api/model-card")
+    assert response.status_code == 200
+    data = response.json()
+    if data["available"]:
+        assert data["features"] and data["replay"]["ndcg@20"] > 0

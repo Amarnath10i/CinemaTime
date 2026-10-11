@@ -871,3 +871,92 @@ def group_recommend(req: GroupRequest):
         results.append(rec_dict)
         
     return results
+
+
+# ── Personalized "For You" ──────────────────────────────────
+# Trained offline on MovieLens 32M in ml/ (`uv run cinemaml export`) and served
+# here with NumPy only: EASE + ALS fold-in + content + popularity candidates,
+# re-ranked by a LambdaRank model. See ml/README.md for how it was evaluated.
+
+def _load_engine():
+    from recsys.engine import ARTIFACTS, Engine
+
+    if not DATA_LOADED or not (ARTIFACTS / "model.npz").exists():
+        return None
+    ids = Engine.catalog_ids_in()
+    row_of = {mid: i for i, mid in enumerate(movies["id"])}
+    vectors = index.reconstruct_n(0, index.ntotal)
+    content = np.zeros((len(ids), vectors.shape[1]), dtype=np.float32)
+    for k, cid in enumerate(ids):
+        if cid in row_of:
+            content[k] = vectors[row_of[cid]]
+    content /= np.linalg.norm(content, axis=1, keepdims=True) + 1e-12
+    engine = Engine.load(content)
+    engine.row_of = row_of
+    return engine
+
+
+try:
+    ENGINE = _load_engine()
+    if ENGINE is not None:
+        print(f"✅ Personalized recommender loaded ({ENGINE.n_items} movies).")
+except Exception:
+    import traceback
+    print(f"⚠️ Personalized recommender unavailable: {traceback.format_exc()}")
+    ENGINE = None
+
+
+class ForYouRequest(BaseModel):
+    liked: list[str]
+    n: int = 20
+
+
+def _for_you_reason(rec, title_of):
+    if rec.because is None and rec.similar is None:
+        return "popular", "Loved by movie fans", None
+    if rec.cold:
+        anchor = rec.similar
+        return "new", f"New to our ratings data, close to {title_of(anchor)}", anchor
+    if rec.because is not None:
+        return "collaborative", f"Because you liked {title_of(rec.because)}", rec.because
+    return "content", f"Close to {title_of(rec.similar)} in story and style", rec.similar
+
+
+@app.post("/api/for-you")
+def for_you(req: ForYouRequest):
+    if ENGINE is None:
+        return {"available": False, "items": [], "used_likes": 0}
+    liked = [f"tmdb_{i}" if i.isdigit() else i for i in req.liked]
+    used = [i for i in liked if i in ENGINE.position]
+    recs = ENGINE.recommend(used, n=max(1, min(req.n, 50)))
+
+    def title_of(item):
+        return str(movies.iloc[ENGINE.row_of[ENGINE.catalog_ids[item]]]["title"])
+
+    items = []
+    for rec in recs:
+        cid = ENGINE.catalog_ids[rec.item]
+        if cid not in ENGINE.row_of:
+            continue
+        out = row_to_dict(movies.iloc[ENGINE.row_of[cid]])
+        kind, reason, anchor = _for_you_reason(rec, title_of)
+        out["explanation"] = {
+            "kind": kind,
+            "reason": reason,
+            "anchor_id": ENGINE.catalog_ids[anchor] if anchor is not None else None,
+        }
+        items.append(out)
+    return {
+        "available": True,
+        "used_likes": len(used),
+        "ignored": [i for i in liked if i not in ENGINE.position],
+        "items": items,
+    }
+
+
+@app.get("/api/model-card")
+def model_card():
+    """How the For You model was trained and evaluated (from the export's meta.json)."""
+    if ENGINE is None:
+        return {"available": False}
+    return {"available": True} | ENGINE.meta
