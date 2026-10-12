@@ -2,7 +2,12 @@
 
 CinemaTime is an AI-powered movie, TV show, and anime recommendation engine. It uses a FAISS vector database and `SentenceTransformers` to understand the *semantic meaning* of media, moving beyond simple genre matching to true contextual recommendations.
 
+Its personalized **For You** page is a two-stage recommender trained on **MovieLens 32M** (EASE, implicit ALS and content retrieval, re-ranked by LightGBM LambdaRank), evaluated on a later year it never saw, and served by a NumPy-only engine that is tested to reproduce the offline model. Everything about it, from the evaluation protocol to the results, is in **[ml/README.md](ml/README.md)**.
+
 ## 🚀 Key Features
+
+### 0. ❤️ For You: a recommender trained on 32 million ratings
+Heart a few movies (stored in your browser, no account) and `/for-you` ranks the catalog for you, each pick with an honest reason: *"Because you liked Memento"* comes from the exact contribution of each liked movie to a linear EASE score, and films too new to have ratings are placed by mapping their plot embeddings into the collaborative space. `/how-it-works` shows the model card with the offline results. Training, evaluation and export live in [`ml/`](ml/); serving is [`backend/recsys/`](backend/recsys/).
 
 ### 1. 🧠 Semantic Search (Natural Language Queries)
 Instead of searching by exact title, you can ask CinemaTime descriptive queries like *"something like Interstellar but funnier"*. The backend lazy-loads the `all-MiniLM-L6-v2` SentenceTransformer model to encode your query into a vector and searches the FAISS index to find the closest thematic matches.
@@ -39,7 +44,7 @@ CinemaTime aggregates data from three different sources into a unified FAISS ind
 
 * **Frontend**: Next.js 14, React, TailwindCSS, Framer Motion
 * **Backend**: FastAPI (Python), Pandas
-* **Machine Learning**: `faiss-cpu`, `scikit-learn`, `sentence-transformers`
+* **Machine Learning**: `faiss-cpu`, `scikit-learn`, `sentence-transformers`; offline: NumPy/SciPy implementations of EASE, ALS and item-kNN, LightGBM LambdaRank (`ml/`, managed with `uv`)
 
 ## ⚙️ Running Locally
 
@@ -81,11 +86,16 @@ The frontend and backend deploy as two Vercel projects from this one repo:
 PyTorch doesn't fit in Vercel's 500 MB function limit, so free-text vibe search (`/api/search/vibe`) is unavailable there. Everything else, including vibe clusters, recommendations, group watch and trailers, works.
 
 ## 🧪 Testing & Evaluation
-The backend includes a Pytest suite, and a GitHub Action workflow automatically runs tests on push/PR to `main`.
+The backend includes a Pytest suite, and a GitHub Action workflow runs it and the ML package's tests on push/PR to `main`.
 ```bash
 cd backend
 pytest tests/
+
+cd ../ml
+uv run pytest   # models against their definitions, NumPy engine vs. offline ranker parity
 ```
+
+The recommender's offline evaluation (temporal split, full-catalog ranking, bootstrap intervals, cold start, diversity, group strategies, feature ablation, serving replay) is described in [ml/README.md](ml/README.md), with every table in [`ml/reports/`](ml/reports/).
 
 We have also written an algorithmic evaluation for the group consensus model. To run it:
 ```bash

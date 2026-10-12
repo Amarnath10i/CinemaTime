@@ -42,3 +42,12 @@ CinemaTime uses `faiss-cpu` with a flat inner-product index (`IndexFlatIP`).
 ### Lazy-Loading the NLP Model
 Natural language semantic search requires encoding the user's text query into a 384-dimensional vector at runtime. 
 Loading the `SentenceTransformer` model takes ~2-3 seconds and consumes ~400MB of RAM. To prevent cold-start delays on startup, the model is **lazy-loaded** using a Singleton pattern in `backend/main.py`. It is only instantiated in memory the *first time* a user triggers a `/api/search/vibe` query, keeping baseline API latency extremely low.
+
+## 4. Personalized Recommendations (For You)
+
+Sections 1-3 describe content-based features built on Sentence-BERT embeddings. The personalized For You page goes further: it learns from 32 million MovieLens ratings joined to this catalog. [ml/README.md](../ml/README.md) covers the evaluation protocol, the models (EASE, implicit ALS with conjugate gradient, item-kNN, a content-to-ALS map for cold-start films, and a LightGBM LambdaRank re-ranker), and how they are served from NumPy arrays. Every result table is in [ml/reports/](../ml/reports/).
+
+The same evaluation re-examined two choices described above, on real users instead of synthetic ones, and one of them did not hold up:
+
+- **Group consensus** (`ml/reports/groups.md`). Random groups of real test users get one shared top-10 list, and each strategy is judged by what members actually liked in the following year. With EASE member scores, *most pleasure* (max) serves members best at every group size: member recall@10 is 0.0651 against 0.0505 for the 0.8·min + 0.2·mean rule in pairs, and 0.0376 against 0.0247 in groups of five. Its least-served member also does at least as well as under the 0.8·min rule. The synthetic evaluation in section 1 rewarded avoiding misery, but on real data the bigger risk is a list that nobody is excited about. With SBERT member scores, every strategy is close to zero, so the content model, not the aggregation rule, is the bottleneck for Group Watch.
+- **MMR λ** (`ml/reports/diversity.md`). On top of EASE, λ = 0.5 costs 2% of NDCG@10 (0.1182 to 0.1156) for intra-list diversity rising from 0.766 to 0.798, while λ = 0.7 costs 10%. The app's default of 0.5 is a reasonable point on that curve.
