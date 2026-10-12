@@ -1,0 +1,15 @@
+{
+  "ease": {
+    "lam": 500,
+    "half_life_days": 365
+  },
+  "itemknn": {
+    "neighbors": 200,
+    "shrink": 50.0
+  },
+  "als": {
+    "factors": 64,
+    "alpha": 20.0,
+    "lam": 10.0
+  }
+}
