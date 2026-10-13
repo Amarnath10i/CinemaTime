@@ -1,106 +1,99 @@
-# 🍿 CinemaTime (formerly CineMatch)
+# CinemaTime
 
-CinemaTime is an AI-powered movie, TV show, and anime recommendation engine. It uses a FAISS vector database and `SentenceTransformers` to understand the *semantic meaning* of media, moving beyond simple genre matching to true contextual recommendations.
+A movie, TV and anime discovery app whose **For You** page is a two-stage
+recommender trained on **MovieLens 32M**: four retrievers (recency-weighted
+EASE, implicit ALS with a content map for cold-start films, content and
+popularity) re-ranked by LightGBM LambdaRank. It is evaluated on a later year
+it never saw, ranks the full catalog, and is served by a NumPy-only engine that
+is tested to reproduce the offline model exactly.
 
-Its personalized **For You** page is a two-stage recommender trained on **MovieLens 32M** (EASE, implicit ALS and content retrieval, re-ranked by LightGBM LambdaRank), evaluated on a later year it never saw, and served by a NumPy-only engine that is tested to reproduce the offline model. Everything about it, from the evaluation protocol to the results, is in **[ml/README.md](ml/README.md)**.
+The full evaluation protocol, models and limitations are in
+**[ml/README.md](ml/README.md)**; every number below links back to a report in
+[`ml/reports/`](ml/reports/).
 
-## 🚀 Key Features
+## Results
 
-### 0. ❤️ For You: a recommender trained on 32 million ratings
-Heart a few movies (stored in your browser, no account) and `/for-you` ranks the catalog for you, each pick with an honest reason: *"Because you liked Memento"* comes from the exact contribution of each liked movie to a linear EASE score, and films too new to have ratings are placed by mapping their plot embeddings into the collaborative space. `/how-it-works` shows the model card with the offline results. Training, evaluation and export live in [`ml/`](ml/); serving is [`backend/recsys/`](backend/recsys/).
+Models see likes (4+ stars) before 2022-10-12 and rank all 8,926 catalog
+movies for 5,396 users, scored on the 87,958 movies those users liked in the
+following year. 95% bootstrap intervals over users.
 
-### 1. 🧠 Semantic Search (Natural Language Queries)
-Instead of searching by exact title, you can ask CinemaTime descriptive queries like *"something like Interstellar but funnier"*. The backend lazy-loads the `all-MiniLM-L6-v2` SentenceTransformer model to encode your query into a vector and searches the FAISS index to find the closest thematic matches.
+| model | NDCG@20 | Recall@20 | Hit@10 |
+|---|---|---|---|
+| Content: SBERT profile (what the app used before) | 0.0062 (0.0056–0.0070) | 0.0064 | 0.042 |
+| Popularity, last 12 months | 0.0851 (0.0814–0.0887) | 0.0956 | 0.346 |
+| Implicit ALS (k = 64) | 0.0805 (0.0770–0.0844) | 0.0792 | 0.325 |
+| EASE, recency-weighted | 0.1240 (0.1194–0.1284) | 0.1257 | 0.465 |
+| **Two-stage: 4 retrievers → LambdaRank** | **0.1405 (0.1364–0.1452)** | **0.1428** | **0.512** |
+| *same model, served by the API's NumPy engine* | *0.1405 (0.1363–0.1451)* | *0.1427* | |
 
-### 2. ⚖️ Diversity-Aware Re-ranking (MMR)
-To prevent "the superhero problem" (where recommending one Marvel movie just returns 10 more Marvel movies), CinemaTime uses **Maximal Marginal Relevance (MMR)**. It balances relevance against diversity, ensuring you get a varied list of high-quality recommendations.
+- **+13% over the best single model** (paired 95% interval +0.0129 to +0.0198 NDCG@20), and 23× the NDCG of the content model the app shipped before.
+- **Serving is exact:** replaying every test user through the API engine changes NDCG@20 by −0.0000 (−0.0005 to +0.0004); a request takes ~17 ms at the median.
+- **Cold start:** 8.8% of next-year likes went to movies with no ratings before the cutoff. Mapping SBERT vectors into the ALS space ranks them at NDCG@20 0.080, against 0.013 for content similarity.
+- **Findings that changed the app:** a release-date mask (a quarter of the catalog postdates the ratings), training the ranker on the pruned EASE it is served with (the dense one cost 0.0025 NDCG), and evidence that Group Watch's least-misery rule serves members worse than "most pleasure".
 
-### 3. 🔍 Explainable Recommendations
-Machine learning shouldn't be a black box. CinemaTime compares the metadata and thematic tags (TF-IDF keyword overlap) of the source and recommended items, returning a human-readable explanation (e.g., `82% match — similar themes: time travel, space`) displayed on the frontend.
+## How it works
 
-### 4. 🤝 Group Watch Consensus Mode
-Can't decide what to watch with friends? Group Watch allows up to 5 people to input their favorite movies. The AI computes a taste centroid for each user, then searches the vector space for movies that minimize the distance to *all* centroids simultaneously. A visual compatibility bar shows how well the consensus pick matches each user.
+```
+likes (browser) ──► retrievers ──────────────────────────────► candidates ──► LambdaRank ──► For You
+                    EASE (recency-weighted, pruned CSR)            │          14 shared       + "Because you
+                    implicit ALS, user folded in at request time   │          features          liked X"
+                    hybrid ALS (SBERT → ALS map, cold start)       │
+                    content (SBERT) + popularity                   ┘
+```
 
-### 5. 🔮 Vibe Clusters (Mood Browsing)
-The offline `build_dataset.py` pipeline runs k-Means clustering over the semantic embeddings, automatically categorizing thousands of movies and shows into browsable "Vibe" clusters (e.g., "Dark Thrillers", "Cozy Romances").
+- **Offline (`ml/`)**: catalog join to MovieLens via TMDB ids, temporal folds, full-catalog metrics with bootstrap and paired comparisons, EASE / item-kNN / ALS implemented from their papers and tested against their definitions, LightGBM LambdaRank, ablations, cold-start and short-history replays.
+- **Serving (`backend/recsys/`)**: the exported arrays are scored with NumPy only; LightGBM trees are flattened and evaluated by a NumPy evaluator that is tested to match LightGBM, including missing-value routing. Ranker features are defined once and imported by both training and the API.
+- **Explanations are exact:** an EASE score is a sum of per-liked-movie contributions, so "Because you liked X" names the largest one.
 
-### 6. 🎬 Trailers for Everything
-Every movie, TV show and anime gets a trailer, teaser, promo or clip. [`backend/trailers.py`](backend/trailers.py) tries, in order:
-1. **TMDB videos**, in English and the title's original language; TV shows with none fall back to their seasons' videos.
-2. **Jikan** trailers, PVs/teasers/CMs and opening/ending videos for MyAnimeList anime.
-3. **TMDB cross-references**: TVmaze shows by IMDb/TheTVDB id, Jikan anime by title.
-4. **YouTube search**, keeping only results that name the title. It uses the YouTube Data API when `YOUTUBE_API_KEY` is set, otherwise the public results page.
+## The app
 
-`GET /api/trailers/{id}?type=movie|tv|anime` returns just the videos and is cached in memory. In the browser, the player skips any video YouTube won't embed and moves on to the next.
+- **For You** (`/for-you`): heart a few movies (stored in the browser, no account) and get a ranked catalog with reasons; `/how-it-works` shows the model card and offline results.
+- **Semantic search**: free-text queries ("something like Interstellar but funnier") encoded with `all-MiniLM-L6-v2` and searched in a FAISS index of movies, TV shows (TVmaze) and anime (Jikan).
+- **Diversity re-ranking** with Maximal Marginal Relevance, and keyword-overlap explanations for similar-title recommendations.
+- **Group Watch**: up to five people enter favourites; the app finds titles close to every member's taste centroid.
+- **Vibe clusters**: k-means over the semantic embeddings for mood browsing.
+- **Trailers** for every title, falling back from TMDB to Jikan, TMDB cross-references and YouTube search.
 
-## 🛠️ Multi-API Architecture
+## Stack
 
-CinemaTime aggregates data from three different sources into a unified FAISS index:
-- **Movies**: TMDB (`tmdb_{id}`)
-- **TV Shows**: TVmaze (`tvmaze_{id}`)
-- **Anime**: Jikan / MyAnimeList (`jikan_{id}`)
+- **Offline ML**: Python, NumPy/SciPy, LightGBM, `uv`
+- **API**: FastAPI, FAISS, sentence-transformers
+- **Frontend**: Next.js 14, React, Tailwind CSS
 
-## 💻 Tech Stack
+## Layout
 
-* **Frontend**: Next.js 14, React, TailwindCSS, Framer Motion
-* **Backend**: FastAPI (Python), Pandas
-* **Machine Learning**: `faiss-cpu`, `scikit-learn`, `sentence-transformers`; offline: NumPy/SciPy implementations of EASE, ALS and item-kNN, LightGBM LambdaRank (`ml/`, managed with `uv`)
+```
+ml/                 training and evaluation package (cinemaml), tests, reports
+backend/            FastAPI app; recsys/ is the NumPy serving engine and shared features
+frontend/           Next.js app
+build_dataset.py    builds the FAISS index and vibe clusters from TMDB, TVmaze and Jikan
+docs/               technical report (MMR, group consensus, FAISS latency)
+```
 
-## ⚙️ Running Locally
+## Run locally
 
-1. **Environment Setup**
-   Create a `.env` file in the root (or `backend/`) directory:
-   ```env
-   TMDB_API_KEY=your_api_key_here
-   # Optional: official YouTube search for the trailer fallback (see below)
-   YOUTUBE_API_KEY=
-   DISABLE_SSL_VERIFY=false
-   ```
-
-2. **Backend & Dataset**
-   ```bash
-   cd backend
-   # requirements-ml.txt adds sentence-transformers for vibe search and the dataset build;
-   # requirements.txt alone runs everything else.
-   pip install -r requirements-ml.txt
-   
-   # Build the FAISS index and Clusters (Takes time due to API rate limits!)
-   python ../build_dataset.py
-   
-   # Run the API server
-   uvicorn main:app --reload --port 8000
-   ```
-
-3. **Frontend**
-   ```bash
-   cd frontend
-   npm install
-   npm run dev
-   ```
-
-## ☁️ Deploying on Vercel (free)
-The frontend and backend deploy as two Vercel projects from this one repo:
-- **Frontend**: Root Directory `frontend`, with `NEXT_PUBLIC_API_URL` set to the backend's URL.
-- **Backend**: Root Directory `backend`. Vercel detects the FastAPI `app` in `main.py` and installs `requirements.txt`. Set `TMDB_API_KEY` (and optionally `YOUTUBE_API_KEY`).
-
-PyTorch doesn't fit in Vercel's 500 MB function limit, so free-text vibe search (`/api/search/vibe`) is unavailable there. Everything else, including vibe clusters, recommendations, group watch and trailers, works.
-
-## 🧪 Testing & Evaluation
-The backend includes a Pytest suite, and a GitHub Action workflow runs it and the ML package's tests on push/PR to `main`.
 ```bash
+# API (needs TMDB_API_KEY in backend/.env; YOUTUBE_API_KEY is optional)
 cd backend
-pytest tests/
+pip install -r requirements-ml.txt        # requirements.txt alone runs everything but free-text search
+python ../build_dataset.py                # FAISS index and clusters; slow because of API rate limits
+uvicorn main:app --reload --port 8000
 
-cd ../ml
-uv run pytest   # models against their definitions, NumPy engine vs. offline ranker parity
+# Frontend
+cd frontend && npm install && npm run dev
 ```
 
-The recommender's offline evaluation (temporal split, full-catalog ranking, bootstrap intervals, cold start, diversity, group strategies, feature ablation, serving replay) is described in [ml/README.md](ml/README.md), with every table in [`ml/reports/`](ml/reports/).
+Reproducing the recommender (MovieLens 32M download, tuning, comparison, export) is described step by step in [ml/README.md](ml/README.md#reproduce).
 
-We have also written an algorithmic evaluation for the group consensus model. To run it:
+## Tests
+
 ```bash
-python backend/eval_group_rec.py
+cd backend && pytest tests/
+cd ml && uv run pytest     # models vs. their definitions, NumPy trees vs. LightGBM, engine vs. offline ranker
 ```
 
-## 📄 Documentation
-For an in-depth breakdown of the Machine Learning architecture, including the Social Choice theory behind Group Consensus, MMR math, and FAISS scale/latency considerations, please read the **[Technical Report](docs/TECHNICAL_REPORT.md)**.
+Both suites run in GitHub Actions on pushes and pull requests to `main`.
+
+## Deploying
+
+The frontend and API deploy as two Vercel projects from this repo (root directories `frontend` and `backend`). PyTorch does not fit Vercel's 500 MB function limit, so free-text search is unavailable there; For You, clusters, Group Watch and trailers work.
